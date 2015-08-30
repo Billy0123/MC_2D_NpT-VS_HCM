@@ -1,0 +1,54 @@
+#!/bin/bash
+#SBATCH --job-name=HCHRecOPTMP
+#SBATCH -p std-1gpu
+#SBATCH --time=0-24:0:0
+#sbatch --no-requeue
+#SBATCH --output=output/OUT_HCH780_100_%j.txt
+#SBATCH --error=output/ERR_HCH780_100_%j.txt
+
+#UWAGA #1 !!! Pamietac o wyzerowaniu liczby krokow generatora liczb pseudolosowych (by niepotrzebnie nie czekac na to przy kazdym runie -> OPCJA W CONFIGU)
+
+#$1-job_id jobu, ktory zawieral loadowany punkt, $2-N, $3-gaps, $4-multimerD, $5-growing, $6-pointNumber(from 0), $7-useSpecificDirectory (UWAGA: NIE 0), $8-ile razy powtorzyc wykonanie jobu?, $9-pointNumberP(from 0)
+
+
+cd $SLURM_SUBMIT_DIR
+#pressure do 3 miejsc po przecinku (zeby pasowalo do nazw plikow, lista DOMYSLNIE na G=1), a pacFrac do 6 miejsc po przecinku!
+listLength=$(wc -l startArguments.txt | cut -f1 -d' ');
+if [ $5 = 1 ]; then
+   linia=$(cat startArguments.txt | head -n $(($6 + 1)) | tail -1);
+   linia2=$(cat startArguments.txt | head -n $(($9 + 1)) | tail -1);
+else
+   linia=$(cat startArguments.txt | head -n $((${listLength} - $6)) | tail -1);
+   linia2=$(cat startArguments.txt | head -n $((${listLength} - $9)) | tail -1);
+fi
+vInit=${linia%	*};
+PRESSURE=${linia2##*	};
+
+#UWAGA #2: SLURM nie tworzy indywidualnego folderu dla kazdego zadania (ponizej tworzony jest recznie)
+mkdir $TMPDIR/tmp_mb1991_$SLURM_JOB_ID
+cd $TMPDIR/tmp_mb1991_$SLURM_JOB_ID
+pwd
+echo "==============================="
+
+cp $SLURM_SUBMIT_DIR/program .
+cp $SLURM_SUBMIT_DIR/config.txt .
+cp $SLURM_SUBMIT_DIR/startArguments.txt .
+mkdir 2D_N-$2_gaps-$3_G-$5_badanie-$7_mN-6_mD-${4}_p-${PRESSURE}
+cp $SLURM_SUBMIT_DIR/2D_N-$2_gaps-$3_G-$5_badanie-$7_mN-6_mD-${4}_p-${PRESSURE}/j-$1_Configurations_spf-${vInit}.txt 2D_N-$2_gaps-$3_G-$5_badanie-$7_mN-6_mD-${4}_p-${PRESSURE} && {
+
+   #UWAGA #3: Mozna do programu zadac jobID rowny np. 'repeats left' (lub 'none' gdy to zwykla rekurencja [a nie onePoint]). Wtedy w przypadku ewentualnej reanimacji powinno byc latwiej (bo: komenda 'sacct' [i podobne], czy nawet zapis w ERR [jezeli akurat powstanie - na co liczyc nie mozna] da co prawda informacje o jobID nieudanego jobu, jednak NIE DA informacji o jobID jobu 'poprzedniego' [z ktorego on korzystal i ktorego znajomosc potrzebna jest do reanimacji]) - nie bedzie trzeba go szukac po folderach indywidualnie dla kazdego reanimowanego jobu.
+   time srun ./program 4 $8 $1 $2 $3 $4 $5 $6 1 $7 0 $9
+
+   cp -r 2D_N-$2_gaps-$3_G-$5_badanie-$7_mN-6_mD-${4}_p-${PRESSURE} $SLURM_SUBMIT_DIR
+   #UWAGA #4: SLURM nie kasuje po sobie tempa automatycznie
+   rm -r $TMPDIR/tmp_mb1991_$SLURM_JOB_ID
+
+   if [ $(($8 - 1)) -gt 0 ]; then 
+   cd $SLURM_SUBMIT_DIR
+   sbatch --job-name=sz_C$9B$7P$6R$(($8 - 1)) --output=output/OUT_HCH$2_gaps-$3_mD-$4_G-$5_C-$9_B-$7_P-$6_R-$(($8 - 1))_%j.txt --error=output/ERR_HCH$2_gaps-$3_mD-$4_G-$5_C-$9_B-$7_P-$6_R-$(($8 - 1))_%j.txt sbatchTMPRecursionOnePoint $8 $2 $3 $4 $5 $6 $7 $(($8 - 1)) $9;
+   fi
+} || {
+   echo "Missing configuration file (previous job failed) or actual job failed at any step. Stopping recursion.";
+}
+
+exit 0

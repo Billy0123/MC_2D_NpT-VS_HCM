@@ -1,0 +1,11 @@
+
+ce.reef.man.poznan.pl: 
+                                                                         Req'd  Req'd   Elap
+Job ID               Username Queue    Jobname          SessID NDS   TSK Memory Time  S Time
+-------------------- -------- -------- ---------------- ------ ----- --- ------ ----- - -----
+12314765.ce.reef     mb1991   standard 504_B1P2C0R30       17521     1  -- 1500mb 24:00 R 09:29
+12314898.ce.reef     mb1991   standard 504_B1P1C0R23     18040     1  -- 1500mb 24:00 R 09:28
+12314899.ce.reef     mb1991   standard 504_B1P13C1R23     18130     1  -- 1500mb 24:00 R 09:28
+12315013.ce.reef     mb1991   standard 504_B2P6C1R30      22487     1  -- 1500mb 24:00 R 05:39
+12315017.ce.reef     mb1991   standard 504_B2P7C2R29      22488     1  -- 1500mb 24:00 R 05:39
+12316130.ce.reef     mb1991   standard 504_B1P4C12R29       6160     1  -- 1500mb 24:00 R 05:03

@@ -567,7 +567,7 @@ int createIterationTable () {
     return 0;
 }
 
-void addAppendix (char *fileName, char *JOBID, bool jobIdOn, bool create) {
+void addAppendix (char *fileName, char *JOBID, bool jobIdOn) {
     strcpy(buffer,"2D_N-"); strncat(buffer,bufferN,20);
     strncat(buffer,"_gaps-",10); strncat(buffer,bufferGaps,20);
     strncat(buffer,"_G-",5); strncat(buffer,bufferG,5);
@@ -575,8 +575,7 @@ void addAppendix (char *fileName, char *JOBID, bool jobIdOn, bool create) {
     strncat(buffer,"_mN-",5); strncat(buffer,bufferMN,20);
     strncat(buffer,"_mS-",5); strncat(buffer,bufferMS,20);
     strncat(buffer,"_mD-",5); strncat(buffer,bufferMD,20);
-    if (create) mkdir(buffer,S_IRWXU);
-    else rmdir(buffer);
+    mkdir(buffer,S_IRWXU);
     strncat(buffer,"/",2);
     if (jobIdOn) {
         strncat(buffer,JOBID,50);
@@ -591,8 +590,8 @@ double getNextArgument (double prevArg, bool countIterations) {
     if (useFileToIterate) {
         if (++actIteration<fileIterateIterationsNumber) {
             prevArg=growing?iterationTable[actIteration][1]:iterationTable[fileIterateIterationsNumber-1-actIteration][1];
-            startMinPacFrac=iterationTable[actIteration][0];
-            startMaxPacFrac=iterationTable[fileIterateIterationsNumber-1-actIteration][0];
+            if (growing) startMinPacFrac=iterationTable[actIteration][0];
+            else startMaxPacFrac=iterationTable[fileIterateIterationsNumber-1-actIteration][0];
         } else growing=-1;
     } else if (growing==1) {
         if (multiplyArgument) prevArg*=multiplyFactor;
@@ -830,7 +829,7 @@ int main(int argumentsNumber, char **arguments) {
     if (!folderIndex) do {
         sprintf(bufferFolderIndex,"%d",++folderIndex);
         strcpy(bufferCheckFolderExisting,resultsFileName);
-        addAppendix(bufferCheckFolderExisting,JOBID,false,true);
+        addAppendix(bufferCheckFolderExisting,JOBID,false);
         checkFolderExisting = fopen(bufferCheckFolderExisting,"rt");
         if (checkFolderExisting!=NULL) {
             fclose(checkFolderExisting);
@@ -838,12 +837,12 @@ int main(int argumentsNumber, char **arguments) {
         } else checkNext=0;
     } while (checkNext);
     sprintf(bufferFolderIndex,"%d",folderIndex);
-    addAppendix(resultsFileName,JOBID,false,true);
-    addAppendix(configurationsFileName,JOBID,true,true);
-    addAppendix(loadConfigurationsFileName,loadedJOBID,true,true); strncat(loadConfigurationsFileName,"_arg-",6); sprintf(buffer,"%.3f",loadedArg); strncat(loadConfigurationsFileName,buffer,100); strncat(loadConfigurationsFileName,".txt",5);
-    addAppendix(orientationsFileName,JOBID,true,true);
-    addAppendix(orientationsResultsFileName,JOBID,true,true);
-    addAppendix(configurationsListFileName,JOBID,false,true);
+    addAppendix(resultsFileName,JOBID,false);
+    addAppendix(configurationsFileName,JOBID,true);
+    addAppendix(loadConfigurationsFileName,loadedJOBID,true); strncat(loadConfigurationsFileName,"_arg-",6); sprintf(buffer,"%.3f",loadedArg); strncat(loadConfigurationsFileName,buffer,100); strncat(loadConfigurationsFileName,".txt",5);
+    addAppendix(orientationsFileName,JOBID,true);
+    addAppendix(orientationsResultsFileName,JOBID,true);
+    addAppendix(configurationsListFileName,JOBID,false);
 
     particle particles[N];
     long arg5=0; double arg1, arg2, arg3, arg4, arg6, arg7, arg8, arg9, arg10;

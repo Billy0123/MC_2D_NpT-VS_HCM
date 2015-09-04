@@ -14,14 +14,14 @@
 
 
 cd $SLURM_SUBMIT_DIR
-#pressure do 3 miejsc po przecinku (zeby pasowalo do nazw plikow, lista DOMYSLNIE na G=1)
+#pacFrac do 3 miejsc po przecinku (zeby pasowalo do nazw plikow, lista DOMYSLNIE na G=1)
 listLength=$(wc -l startArguments.txt | cut -f1 -d' ');
 if [ $6 = 1 ]; then
    linia=$(cat startArguments.txt | head -n $(($7 + 1)) | tail -1);
 else
    linia=$(cat startArguments.txt | head -n $((${listLength} - $7)) | tail -1);
 fi
-PRESSURE=${linia##*	};
+PACFRAC=${linia%	*};
 
 #UWAGA #3: SLURM nie tworzy indywidualnego folderu dla kazdego zadania (ponizej tworzony jest recznie)
 mkdir $TMPDIR/tmp_mb1991_$SLURM_JOB_ID
@@ -33,7 +33,7 @@ cp $SLURM_SUBMIT_DIR/program .
 cp $SLURM_SUBMIT_DIR/config.txt .
 cp $SLURM_SUBMIT_DIR/startArguments.txt .
 mkdir 2D_N-$2_gaps-$3_G-$6_badanie-$9_mN-6_mS-$4_mD-$5
-cp $SLURM_SUBMIT_DIR/2D_N-$2_gaps-$3_G-$6_badanie-$9_mN-6_mS-$4_mD-$5/j-$1_Configurations_arg-${PRESSURE}.txt 2D_N-$2_gaps-$3_G-$6_badanie-$9_mN-6_mS-$4_mD-$5 && {
+cp $SLURM_SUBMIT_DIR/2D_N-$2_gaps-$3_G-$6_badanie-$9_mN-6_mS-$4_mD-$5/j-$1_Configurations_arg-${PACFRAC}.txt 2D_N-$2_gaps-$3_G-$6_badanie-$9_mN-6_mS-$4_mD-$5 && {
 
    #UWAGA #4: Mozna do programu zadac jobID rowny np. 'repeats left' (lub 'none' gdy to zwykla rekurencja [a nie onePoint]). Wtedy w przypadku ewentualnej reanimacji powinno byc latwiej (bo: komenda 'sacct' [i podobne], czy nawet zapis w ERR [jezeli akurat powstanie - na co liczyc nie mozna] da co prawda informacje o jobID nieudanego jobu, jednak NIE DA informacji o jobID jobu 'poprzedniego' [z ktorego on korzystal i ktorego znajomosc potrzebna jest do reanimacji]) - nie bedzie trzeba go szukac po folderach indywidualnie dla kazdego reanimowanego jobu.
    time srun ./program 4 $SLURM_JOBID $1 $2 $3 $4 $5 $6 $7 $8 $9 0

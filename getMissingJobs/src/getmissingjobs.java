@@ -38,15 +38,15 @@ public class getmissingjobs {
             runningJobs.close();
             
             int licznik=0;
-            BufferedReader pressures = new BufferedReader(new FileReader(startArgumentsFileName));
-            while ((buffer=pressures.readLine())!=null) licznik++; pressures.close(); 
-            String pressureList[] = new String[licznik]; 
-            pressures = new BufferedReader(new FileReader(startArgumentsFileName));
+            BufferedReader pacFracs = new BufferedReader(new FileReader(startArgumentsFileName));
+            while ((buffer=pacFracs.readLine())!=null) licznik++; pacFracs.close(); 
+            String[] pacFracList = new String[licznik]; 
+            pacFracs = new BufferedReader(new FileReader(startArgumentsFileName));
             for (int i=0;i<licznik;i++) {
-                buffer = pressures.readLine();
-                pressureList[i] = buffer.split("\t")[1];
+                buffer = pacFracs.readLine();
+                pacFracList[i] = buffer.split("\t")[0];
             }
-            pressures.close();
+            pacFracs.close();
             
             BufferedWriter saveDirectories = new BufferedWriter(new FileWriter(fileDirectoriesName[0],false)),
                            savePoints = new BufferedWriter(new FileWriter(filePointsName[0],false)),
@@ -58,7 +58,7 @@ public class getmissingjobs {
                 String actualFolderList[] = new File("2D_N-"+N+"_gaps-"+gaps+"_G-"+G+"_badanie-"+String.valueOf(i+minDirectory)+"_mN-"+mN+"_mS-"+mS+"_mD-"+mD).list();
                 int minJobID = maxJobID;
                 if (actualFolderList!=null) for (int k=0;k<actualFolderList.length;k++) 
-                    if (actualFolderList[k].contains(pressureList[G.equals("1")?j:(pressureList.length-1-j)])) 
+                    if (actualFolderList[k].contains(pacFracList[G.equals("1")?j:(pacFracList.length-1-j)])) 
                         if (actualFolderList[k].contains("Configurations") && !actualFolderList[k].endsWith("Results.txt")) 
                             try{minJobID = Math.min(minJobID,Integer.parseInt(actualFolderList[k].substring(2).split("_")[0]));}catch(Exception e1){}
                 saveJobIDs.write(String.valueOf(minJobID+startPreviousIteration)); saveJobIDs.newLine();
@@ -69,7 +69,7 @@ public class getmissingjobs {
         }
     }
     
-    public static void main(String[] args) {       
+    public static void main(String[] args) { 
         new getmissingjobs(Integer.parseInt(args[0]),Integer.parseInt(args[1]),Integer.parseInt(args[2]),Integer.parseInt(args[3]),Integer.parseInt(args[4]),args[5],args[6], 
             args[7],args[8],args[9],args[10],args[11],args[12],args[13],args[14],Integer.parseInt(args[15]),args[16].split("!"),args[17].split("!"));
     }

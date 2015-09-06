@@ -1,12 +1,12 @@
 bufferValue		=12345;		//test dla odczytu pierwszej wartosci (12345)
-N			=56;		//56, 224, 504, 780, 896, 3120
+N			=780;		//56, 224, 504, 780, 896, 3120
 gaps			=0;		//liczba luk w ukladzie (dziur-defektow), rozmieszczonych losowo przy inicie (nie zbyt blisko)
 multimerN		=6;		//liczba wierzcholkow multimera
 multimerS		=1;		//dlugosc bokow n-katow foremnych
 multimerD		=1;		//srednica dyskow we wierzcholkach n-katow
 growing			=1;		//0-rozprezanie, 1-sprezanie
 loadedConfiguration	=0;		//0-nowe badanie, 1-wczytaj konfiguracje
-loadedArg		=25.000;	//gdy loadedConfiguration=1, wskaze na plik konfiguracyjny, ktory zostanie wczytany
+loadedArg		=1.501;	//gdy loadedConfiguration=1, wskaze na plik konfiguracyjny, ktory zostanie wczytany
 loadedJOBID		=none;		//gdy loadedConfiguration=1, wskaze JOBID pliku konfiguracji, okreslonej przez loadedArg
 loadedSetStartGenerator	=0;		//0-ustaw pozycje startowa generatora na aktualny czas procesora, 1-ustaw pozycje startowa generatora na wskazanie pliku LOAD
 loadedSetGenerator	=0;		//0-nie ustawiaj generatora na pozycje wskazywana przez plik LOAD, 1-ustaw generator na pozycje wskazywana przez plik LOAD
@@ -18,12 +18,14 @@ ODFLength		=201;		//liczba slupkow histogramu Orientational Distribution Functio
 intervalOrientations	=1000;		//liczba cykli, co ktora zapisywana jest orientacja czastki - wielokrotnosc intervalSampling
 skipFirstIteration	=0;		//0-zacznij badanie od pierwszego punktu pomiarowego, 1-zacznij badanie od drugiego punktu pomiarowego
 useSpecificDirectory	=1;		//0-stworz nowy folder (kolejny), x(>0)-uzyj (stworz) folder o numerze x
-cyclesOfEquilibration	=5000;	//cykle na rozruch
-cyclesOfMeasurement	=5000;	//cykle na pomiar (po rozruchu)
+cyclesOfEquilibration	=2000;	//cykle na rozruch
+cyclesOfMeasurement	=3000;	//cykle na pomiar (po rozruchu)
 intervalResults		=10;		//liczba cykli, co ktora zapisywane sa mierzone wielkosci - wielokrotnosc intervalSampling
 maxDeltaR		=0.15;		//najwieksza wartosc ruchu probnego czastki
 desiredAcceptanceRatioR	=0.3;		//wartosc akceptacji ruchow probnych czastek
-useFileToIterate	=1;		//0-stosuj PONIZSZE ustawienia, 1-korzystaj z pliku 'startArguments.txt' do iterowania (plik ustawiony DOMYSLNIE na growing=1, max 1000 iteracji)
+lambdaSetIndex		=0;		//index zestawu lambd z pliku 'lambdaSets.txt'
+useFileToIterate	=1;		//0-stosuj PONIZSZE ustawienia, 1-korzystaj z pliku 'startArguments.txt' do iterowania (plik ustawiony DOMYSLNIE na growing=1, max 1000 iteracji; UWAGA-kolumny: pierwsza:pacFrac[.3], druga:avPhi[dowolne])
+avPhi			=0.0;		//sredni kat dla sieci referencyjnej, gdy lambda[1]!=0
 minArg			=1.4800;	//najmniejsze badane upakowanie [pacFrac liczbowo najwieksze] (startArg przy growing=1)
 maxArg			=1.0010;	//najwieksze badane upakowanie [pacFrac liczbowo najmniejsze] (startArg przy growing=0)
 multiplyArgument	=1;		//0-argument dodawany (interwaly), 1-argument mnozony (czynnik ponizej)

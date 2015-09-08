@@ -855,26 +855,28 @@ int main(int argumentsNumber, char **arguments) {
             printf("Skipping first iteration...\n");
             skipFirstIteration=0;
         } else {
-            if (loadedConfiguration) {
-                if (loadedSetStartGenerator) {
-                    printf("Setting start position of p-random number generator to position from file...\n");
-                    InitMT((unsigned int)arg1);
-                    randomStartStep[0]=arg1;
+            if (!onlyMath[0]) {
+                if (loadedConfiguration) {
+                    if (loadedSetStartGenerator) {
+                        printf("Setting start position of p-random number generator to position from file...\n");
+                        InitMT((unsigned int)arg1);
+                        randomStartStep[0]=arg1;
+                    } else {
+                        randomStartStep[0]=InitRandomMT();
+                        printf("Setting start position of p-random number generator to position from file - DISABLED\n");
+                    }
+                    randomStartStep[1]=0;
+                    if (loadedSetGenerator) {
+                        printf("Setting p-random number generator to last position from file...\n");
+                        for (double i=0;i<arg2;i++) MTGenerate(randomStartStep);
+                    } else printf("Setting p-random number generator to last position from file - DISABLED\n");
                 } else {
+                    printf("Setting start position of p-random number generator to actual CPU time...\n");
                     randomStartStep[0]=InitRandomMT();
-                    printf("Setting start position of p-random number generator to position from file - DISABLED\n");
+                    randomStartStep[1]=0;
                 }
-                randomStartStep[1]=0;
-                if (loadedSetGenerator) {
-                    printf("Setting p-random number generator to last position from file...\n");
-                    for (double i=0;i<arg2;i++) MTGenerate(randomStartStep);
-                } else printf("Setting p-random number generator to last position from file - DISABLED\n");
-            } else {
-                printf("Setting start position of p-random number generator to actual CPU time...\n");
-                randomStartStep[0]=InitRandomMT();
-                randomStartStep[1]=0;
-            }
-            printf("Start of equilibration at pacFrac: %.4f (startDen: %.4f)... (%ld cycles)\n",pacFrac,rho,cyclesOfEquilibration);
+                printf("Start of equilibration at pacFrac: %.4f (startDen: %.4f)... (%ld cycles)\n",pacFrac,rho,cyclesOfEquilibration);
+            } else printf("Start of mathOnly mode for: N: %d, gaps: %d, growing: %d, StartDen: %.4f, startPacFrac: %.4f, lambda[0]: %.4f, lambda[1]: %.4f, avPhi: %.4f, mN: %d, mS: %.2f, mD: %.6f\n",N,gaps,growing,rho,pacFrac,lambda[0],lambda[1],avPhi,multimerN,multimerS,multimerD);
 
 
 
@@ -992,7 +994,7 @@ int main(int argumentsNumber, char **arguments) {
                             printf("   AccRatR: %.4f, dR: %.4f\n",acceptanceRatioR,deltaR);
                             printf("   Dens: %.4f, V/V_cp: %.4f\n",rho,pacFrac);
                             printf("   box00: %.8f, box11: %.8f, box10(01): %.8f\n",boxMatrix[0][0],boxMatrix[1][1],boxMatrix[1][0]);
-                            printf("   displacementsSum[0]: %.8f, displacementsSum[1]: %.8f\n",displacementsSum[0],displacementsSum[1]);
+                            printf("   avDisplacement[0]: %.8f, avDisplacement[1]: %.8f\n",displacementsSum[0]/(double)activeN,displacementsSum[1]/(double)activeN);
                         }*/
                         /////
 
@@ -1048,7 +1050,7 @@ int main(int argumentsNumber, char **arguments) {
                                 printf("   AccRatR: %.4f, dR: %.4f\n",acceptanceRatioR,deltaR);
                                 printf("   Dens: %.4f, V/V_cp: %.4f\n",rho,pacFrac);
                                 printf("   box00: %.8f, box11: %.8f, box10(01): %.8f\n",boxMatrix[0][0],boxMatrix[1][1],boxMatrix[1][0]);
-                                printf("   displacementsSum[0]: %.8f, displacementsSum[1]: %.8f\n",displacementsSum[0],displacementsSum[1]);
+                                printf("   avDisplacement[0]: %.8f, avDisplacement[1]: %.8f\n",displacementsSum[0]/(double)activeN,displacementsSum[1]/(double)activeN);
 
                                 fileConfigurations = fopen(bufferConfigurations,"w");
                                 fprintf(fileConfigurations,"Rho: %.12f\tV/V_cp: %.12f\tPressureReduced: pressureReduced\tRandStart: %.1f\tRandSteps: %.1f\tCycles: %ld\tEquilTime: %ldsec\tMeasuTime: %ldsec\n\n",rho,pacFrac,

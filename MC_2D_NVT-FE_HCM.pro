@@ -8,7 +8,7 @@ QT       += core
 
 QT       -= gui
 
-TARGET = MC_2D_NpT-VS_HCM
+TARGET = MC_2D_NVT-FE_HCM
 CONFIG   += console
 CONFIG   -= app_bundle
 
@@ -17,7 +17,7 @@ TEMPLATE = app
 
 SOURCES += \
     MTGenerator.cpp \
-    MC-NpT_2D_VariableBoxShape_HardMultimers.cpp
+    MC-NVT_2D_FreeEnergies_HardMultimers.cpp
 
 HEADERS += \
     MTGenerator.h

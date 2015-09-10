@@ -364,7 +364,8 @@ void computeDisplacementsSum (particle *particles, particle *latticeNodes, doubl
         rx-=round(normalizedRX)*boxMatrix[0][0]+round(normalizedRY)*boxMatrix[0][1];
         ry-=round(normalizedRX)*boxMatrix[1][0]+round(normalizedRY)*boxMatrix[1][1];
         displacementsSum[0]+=rx*rx+ry*ry;
-        double sinDeltaPhi=sin(particles[i].phi-avPhi);
+        double deltaPhi=particles[i].phi-avPhi,
+               sinDeltaPhi=sin(deltaPhi+deltaPhi<-C?2*C:deltaPhi>C?-2*C:0.0);
         displacementsSum[1]+=sinDeltaPhi*sinDeltaPhi;
     }
 }

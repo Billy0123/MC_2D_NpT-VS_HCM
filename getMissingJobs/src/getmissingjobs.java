@@ -43,7 +43,7 @@ public class getmissingjobs {
                             parametersValues[j]=Integer.parseInt(result[i].substring(parameterStartIndex+1,parameterEndIndex));
                         }
                     }
-                    jobFailedList[parametersValues[2]][parametersValues[0]-1][parametersValues[1]]=false;
+                    try {jobFailedList[parametersValues[2]][parametersValues[0]-1][parametersValues[1]]=false;} catch (Exception e1) {}  //moga byc parametry WYZSZE [outOfBounds] zadane w innej serii
                     break;
                 }
             }

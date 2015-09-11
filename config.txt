@@ -1,7 +1,7 @@
-bufferValue		=12345;		//test dla odczytu pierwszej wartosci (12345)
-N			=224;		//56, 224, 504, 780, 896, 3120
+bufferValue		=12345;		//test dla odczytu pierwszej wartosci (12345), dla przeczyszczenia buforu
+N			=224;		//obslugiwane: N%56==0, N%780==0
 gaps			=0;		//liczba luk w ukladzie (dziur-defektow), rozmieszczonych losowo przy inicie (nie zbyt blisko)
-multimerN		=6;		//liczba wierzcholkow multimera
+multimerN		=6;		//obslugiwane: 5, 6
 multimerS		=1.0;		//dlugosc bokow n-katow foremnych
 multimerD		=0.500001;		//srednica dyskow we wierzcholkach n-katow
 sideFixed		=0;		//0-vertical, 1-horizontal

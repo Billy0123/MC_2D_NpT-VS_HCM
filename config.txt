@@ -1,7 +1,7 @@
 bufferValue		=12345;		//test dla odczytu pierwszej wartosci (12345), dla przeczyszczenia buforu
 N			=224;		//obslugiwane: N%56==0, N%780==0
 gaps			=0;		//liczba luk w ukladzie (dziur-defektow), rozmieszczonych losowo przy inicie (nie zbyt blisko)
-multimerN		=6;		//obslugiwane: 5, 6
+multimerN		=5;		//obslugiwane: 5, 6
 multimerS		=1.00;		//dlugosc bokow n-katow foremnych
 multimerD		=1.000000;		//srednica dyskow we wierzcholkach n-katow
 growing			=1;		//0-rozprezanie, 1-sprezanie
@@ -24,8 +24,8 @@ intervalResults		=10;		//liczba cykli, co ktora zapisywane sa mierzone wielkosci
 maxDeltaR		=0.15;		//najwieksza wartosc ruchu probnego czastki
 desiredAcceptanceRatioR	=0.3;		//wartosc akceptacji ruchow probnych czastek
 lambdaSetIndex		=0;		//index zestawu lambd z pliku 'lambdaSets.txt' (UWAGA-kolumny: pierwsza:lambda[0][dowolne], druga:lambda[1][dowolne])
-useFileToIterate	=1;		//0-stosuj PONIZSZE ustawienia, 1-korzystaj z pliku 'startArguments.txt' do iterowania (plik ustawiony DOMYSLNIE na growing=1, max 1000 iteracji; UWAGA-kolumny: pierwsza:pacFrac[.3], druga:avPhi[dowolne]=Abs[ArcCos[<WielokrotnoscPhi>]/multimerN-C])
-avPhi			=0.5235987;		//sredni kat dla sieci referencyjnej, gdy lambda[1]!=0
+useFileToIterate	=1;		//0-stosuj PONIZSZE ustawienia, 1-korzystaj z pliku 'startArguments.txt' do iterowania (plik ustawiony DOMYSLNIE na growing=1, max 1000 iteracji; UWAGA-kolumny: pierwsza:pacFrac[.3], druga:avPhi[dowolne]=Abs[ArcCos[<WielokrotnoscPhi>]/multimerN-C]), 3-6:box
+avPhi			=0.0;		//sredni kat dla sieci referencyjnej, gdy lambda[1]!=0; zgodnosc z publikacjami: HCH-trzeba przekrecac o C, HCP-0 to u mnie sublattice II a C (PI) to sublattice I (na odwrot)
 minArg			=1.4800;	//najmniejsze badane upakowanie [pacFrac liczbowo najwieksze] (startArg przy growing=1)
 maxArg			=1.0010;	//najwieksze badane upakowanie [pacFrac liczbowo najmniejsze] (startArg przy growing=0)
 multiplyArgument	=1;		//0-argument dodawany (interwaly), 1-argument mnozony (czynnik ponizej)

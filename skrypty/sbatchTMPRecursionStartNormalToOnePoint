@@ -6,7 +6,7 @@
 #SBATCH --output=output/OUT_HCH780_100_%j.txt
 #SBATCH --error=output/ERR_HCH780_100_%j.txt
 
-#$1-N, $2-gaps, $3-multimerD, $4-growing, $5-useSpecificDirectory (UWAGA: NIE 0), $6-pointNumber(from 0), $7-ile razy powtorzyc wykonanie jobu?, $8-iterationsNumber, $9-pointNumberP(from 0)
+#$1-N, $2-gaps, $3-multimerD, $4-growing, $5-useSpecificDirectory (UWAGA: NIE 0), $6-pointNumber(from 0), $7-ile razy powtorzyc wykonanie jobu?, $8-iterationsNumber, $9-pointNumberP(from 0), $10-filterText
 
 
 cd $SLURM_SUBMIT_DIR
@@ -38,6 +38,6 @@ cp -r 2D_N-$1_gaps-$2_G-$4_badanie-$5_mN-6_mD-${3}_p-${PRESSURE} $SLURM_SUBMIT_D
 rm -r $TMPDIR/tmp_mb1991_$SLURM_JOB_ID
 
 cd $SLURM_SUBMIT_DIR
-sbatch --job-name=sz_C$9B$5P$6R$(($7 - 1)) --output=output/OUT_HCH$1_gaps-$2_mD-$3_G-$4_C-$9_B-$5_P-$6_R-$(($7 - 1))_%j.txt --error=output/ERR_HCH$1_gaps-$2_mD-$3_G-$4_C-$9_B-$5_P-$6_R-$(($7 - 1))_%j.txt sbatchTMPRecursionOnePoint $7 $1 $2 $3 $4 $6 $5 $(($7 - 1)) $9;
+sbatch --job-name=${10}C$9B$5P$6R$(($7 - 1)) --output=output/OUT_HCH$1_gaps-$2_mD-$3_G-$4_C-$9_B-$5_P-$6_R-$(($7 - 1))_%j.txt --error=output/ERR_HCH$1_gaps-$2_mD-$3_G-$4_C-$9_B-$5_P-$6_R-$(($7 - 1))_%j.txt sbatchTMPRecursionOnePoint $7 $1 $2 $3 $4 $6 $5 $(($7 - 1)) $9 ${10};
 
 exit 0

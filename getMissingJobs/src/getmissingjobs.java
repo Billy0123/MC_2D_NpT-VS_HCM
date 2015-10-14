@@ -58,7 +58,7 @@ public class getmissingjobs {
                 savePoints.write(String.valueOf(j)); savePoints.newLine();
                 savePressureIndexes.write(String.valueOf(l)); savePressureIndexes.newLine();
 
-                String actualFolderList[] = new File("2D_N-"+N+"_gaps-"+gaps+"_G-"+G+"_badanie-"+String.valueOf(i+minDirectory)+"_mN-"+mN+"_mD-"+mD+"_p-"+startArgumentsList[G.equals("1")?l:(licznik-1-l)][1]).list();
+                String actualFolderList[] = new File("2D_N-"+N+"_gaps-"+gaps+"_G-"+G+"_badanie-"+String.valueOf(i+1)+"_mN-"+mN+"_mD-"+mD+"_p-"+startArgumentsList[G.equals("1")?l:(licznik-1-l)][1]).list();
                 int minJobID = maxJobID;
                 if (actualFolderList!=null) for (int k=0;k<actualFolderList.length;k++) 
                     if (actualFolderList[k].contains(startArgumentsList[G.equals("1")?j:(licznik-1-j)][0])) 

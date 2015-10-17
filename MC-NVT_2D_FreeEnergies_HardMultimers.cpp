@@ -13,6 +13,8 @@ int N,gaps,activeN,loadedConfiguration,loadType=0,loadedSetStartGenerator,loaded
     useSpecificDirectory,useFileToIterate,fileIterateIterationsNumber=0,actIteration=0,multiplyArgument,
     lambdaSetIndex,onlyMath[2]={0,0};
 long cyclesOfEquilibration,cyclesOfMeasurement,timeEq=0,timeMe=0,timeMath=0,intervalSampling,intervalOutput,intervalResults,intervalOrientations;
+//bool testujOverlapProbab=false;             //overlapProbTest 1/5
+//long ovProbAttempted=0,ovProbOverlapped=0;  //overlapProbTest 2/5
 double maxDeltaR,desiredAcceptanceRatioR,
        minArg,maxArg,loadedArg,
        intervalMin[10],intervalMax[10],intervalDelta[10],
@@ -437,6 +439,10 @@ int attemptToDisplaceAParticle (particle *particles, particle *latticeNodes, int
         massCenter[1][i]+=(particles[index].normR[i]-oldNormR[i])/(double)activeN;
     }
     int overlap=getOverlapsAndDisplacements(particles,latticeNodes,index,boxMatrix);
+    /*if (testujOverlapProbab) { //overlapProbTest 3/5
+        ovProbAttempted++;
+        if (overlap) ovProbOverlapped++;
+    }*/
     if (overlap==0 && MTGenerate(randomStartStep)%1000000/1000000.0<exp((oldDisplacementsSum[0]-displacementsSum[0])*lambda[0]+(oldDisplacementsSum[1]-displacementsSum[1])*lambda[1])) checkSinglePeriodicBoundaryConditions(&particles[index],boxMatrix);
     else {
         for (int i=0;i<2;i++) {
@@ -1040,6 +1046,7 @@ int main(int argumentsNumber, char **arguments) {
 
                         if (cycle>cyclesOfEquilibration) {
                             if (timeEquilibration==0) timeEquilibration=time(0);
+                            //if (!testujOverlapProbab) testujOverlapProbab=true; //overlapProbTest 4/5
 
                             int collidingPairs=0;
                             if (countCollidingPairs) {
@@ -1296,4 +1303,5 @@ int main(int argumentsNumber, char **arguments) {
     }
     printf("\nTime for equilibrations: %ldsec ,  time for measurments: %ldsec, time for math: %ldsec.\n",timeEq,timeMe,timeMath);
     printf("\nSimulation has been completed.\n");
+    //printf("\n\nprobability of NO-OVERLAPS = %.5f\n",1-ovProbOverlapped/(double)ovProbAttempted);   //overlapProbTest 5/5
 }

@@ -34,10 +34,10 @@ cp $SLURM_SUBMIT_DIR/config.txt .
 cp $SLURM_SUBMIT_DIR/startArguments.txt .
 cp $SLURM_SUBMIT_DIR/lambdaSets.txt .
 mkdir 2D_N-$2_gaps-$3_G-$6_badanie-$9_mN-6_mS-$4_mD-$5
-cp $SLURM_SUBMIT_DIR/2D_N-$2_gaps-$3_G-$6_badanie-$9_mN-6_mS-$4_mD-$5/j-$1_Configurations_arg-${PACFRAC}_l-$11.txt 2D_N-$2_gaps-$3_G-$6_badanie-$9_mN-6_mS-$4_mD-$5 && {
+cp $SLURM_SUBMIT_DIR/2D_N-$2_gaps-$3_G-$6_badanie-$9_mN-6_mS-$4_mD-$5/j-$1_Configurations_arg-${PACFRAC}_l-${11}.txt 2D_N-$2_gaps-$3_G-$6_badanie-$9_mN-6_mS-$4_mD-$5 && {
 
    #UWAGA #4: Mozna do programu zadac jobID rowny np. 'repeats left' (lub 'none' gdy to zwykla rekurencja [a nie onePoint]). Wtedy w przypadku ewentualnej reanimacji powinno byc latwiej (bo: komenda 'sacct' [i podobne], czy nawet zapis w ERR [jezeli akurat powstanie - na co liczyc nie mozna] da co prawda informacje o jobID nieudanego jobu, jednak NIE DA informacji o jobID jobu 'poprzedniego' [z ktorego on korzystal i ktorego znajomosc potrzebna jest do reanimacji]) - nie bedzie trzeba go szukac po folderach indywidualnie dla kazdego reanimowanego jobu.
-   time srun ./program 4 $SLURM_JOBID $1 $2 $3 $4 $5 $6 $7 $8 $9 0 $11
+   time srun ./program 4 $SLURM_JOBID $1 $2 $3 $4 $5 $6 $7 $8 $9 0 ${11}
 
    cp -r 2D_N-$2_gaps-$3_G-$6_badanie-$9_mN-6_mS-$4_mD-$5 $SLURM_SUBMIT_DIR
    #UWAGA #5: SLURM nie kasuje po sobie tempa automatycznie

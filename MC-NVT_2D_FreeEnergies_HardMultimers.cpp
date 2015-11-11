@@ -13,12 +13,11 @@ int N,gaps,activeN,loadedConfiguration,loadType=0,loadedSetStartGenerator,loaded
     useSpecificDirectory,useFileToIterate,fileIterateIterationsNumber=0,actIteration=0,multiplyArgument,
     lambdaSetIndex,onlyMath[2]={0,0};
 long cyclesOfEquilibration,cyclesOfMeasurement,timeEq=0,timeMe=0,timeMath=0,intervalSampling,intervalOutput,intervalResults,intervalOrientations;
-//bool testujOverlapProbab=false;             //overlapProbTest 1/5
-//long ovProbAttempted=0,ovProbOverlapped=0;  //overlapProbTest 2/5
+long ovProbAttempted=0,ovProbOverlapped=0;  //overlapProbTest 1/4
 double maxDeltaR,desiredAcceptanceRatioR,
        minArg,maxArg,loadedArg,
        intervalMin[10],intervalMax[10],intervalDelta[10],
-       startArg,deltaR, //*sigma(=1)
+       startArg,deltaR,deltaPhi, //*sigma(=1)
        multimerS,multimerD,randomStartStep[2],normalizingDenominator,
        neighRadius,neighRadius2,neighSafeDistance,multiplyFactor,
        iterationTable[1000][6],pi=3.1415926535898,
@@ -394,7 +393,7 @@ void computeDisplacementsSum (particle *particles, particle *latticeNodes, doubl
 
 int getOverlapsAndDisplacements (particle *particles, particle *latticeNodes, int index, double boxMatrix[2][2]) {
     int overlap=0;
-    for (int i=0;i<particles[index].neighCounter;i++) {
+    /*for (int i=0;i<particles[index].neighCounter;i++) { //overlapProbTest(comment) 2a/4
         double normalizedRX=particles[particles[index].neighbours[i]].normR[0]-particles[index].normR[0],
                normalizedRY=particles[particles[index].neighbours[i]].normR[1]-particles[index].normR[1],
                rx=particles[particles[index].neighbours[i]].r[0]-particles[index].r[0],
@@ -418,8 +417,8 @@ int getOverlapsAndDisplacements (particle *particles, particle *latticeNodes, in
             } //analyticMethodForEvenHCM 3/6
             if (overlap==1) i=particles[index].neighCounter;
         }
-    }
-    if (overlap==0) computeDisplacementsSum(particles,latticeNodes,boxMatrix);
+    } //overlapProbTest(comment) 2b/4
+    if (overlap==0) */computeDisplacementsSum(particles,latticeNodes,boxMatrix);
     return overlap;
 }
 
@@ -433,16 +432,12 @@ int attemptToDisplaceAParticle (particle *particles, particle *latticeNodes, int
     for (int i=0;i<2;i++) particles[index].r[i]+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaR;
     particles[index].normR[0]=(-boxMatrix[1][1]*particles[index].r[0]+boxMatrix[1][0]*particles[index].r[1])/normalizingDenominator;
     particles[index].normR[1]=(boxMatrix[1][0]*particles[index].r[0]-boxMatrix[0][0]*particles[index].r[1])/normalizingDenominator;
-    particles[index].phi+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaR;
+    particles[index].phi+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaPhi;
     for (int i=0;i<2;i++) {
         massCenter[0][i]+=(particles[index].r[i]-oldR[i])/(double)activeN;
         massCenter[1][i]+=(particles[index].normR[i]-oldNormR[i])/(double)activeN;
     }
     int overlap=getOverlapsAndDisplacements(particles,latticeNodes,index,boxMatrix);
-    /*if (testujOverlapProbab) { //overlapProbTest 3/5
-        ovProbAttempted++;
-        if (overlap) ovProbOverlapped++;
-    }*/
     if (overlap==0 && MTGenerate(randomStartStep)%1000000/1000000.0<exp((oldDisplacementsSum[0]-displacementsSum[0])*lambda[0]+(oldDisplacementsSum[1]-displacementsSum[1])*lambda[1])) checkSinglePeriodicBoundaryConditions(&particles[index],boxMatrix);
     else {
         for (int i=0;i<2;i++) {
@@ -751,7 +746,7 @@ int main(int argumentsNumber, char **arguments) {
 
     //stale wynikajace z zadanych parametrow multimerow
     L=multimerS/multimerD;
-    C=pi/(double)multimerN;
+    C=pi/(double)multimerN; deltaPhi=deltaR*2.0*sin(C);
     ROkreguOpisanego=multimerS/(2.0*sin(C));
     absoluteMinimum=atan(L/(2.0*L/tan(C)+sqrt(4.0-L*L)));
     absoluteMinimum2=C-absoluteMinimum;
@@ -827,6 +822,9 @@ int main(int argumentsNumber, char **arguments) {
          } else for (int i=0;i<2;i++) for (int j=0;j<2;j++) boxMatrix[i][j]=oldBoxMatrix[i][j];
          normalizingDenominator=pow(boxMatrix[1][0],2)-boxMatrix[0][0]*boxMatrix[1][1];
 
+         volume=fabs(-pow(boxMatrix[1][0],2)+boxMatrix[0][0]*boxMatrix[1][1]);
+         rho=N/volume; pacFrac=1.0/VcpPerParticle/rho;
+
         if (!onlyMath[0]) {
             if (arg==startArg && !loadedConfiguration) {
                 printf("INIT POS.- N: %d, gaps: %d, growing: %d, StartDen: %.4f, startPacFrac: %.4f, lambda[0]: %.4f, lambda[1]: %.4f, avPhi: %.4f, mN: %d, mS: %.2f, mD: %.6f\n",N,gaps,growing,rho,pacFrac,lambda[0],lambda[1],avPhi,multimerN,multimerS,multimerD);
@@ -865,7 +863,7 @@ int main(int argumentsNumber, char **arguments) {
                 }
 
                 boxMatrix[0][0]=arg6; boxMatrix[1][1]=arg7; boxMatrix[1][0]=arg8; boxMatrix[0][1]=arg8;
-                deltaR=arg9;
+                deltaR=arg9; deltaPhi=deltaR*2.0*sin(C);
                 arg=arg4; pacFrac=arg;
                 rho=arg3; volume=N/rho;
 
@@ -994,6 +992,37 @@ int main(int argumentsNumber, char **arguments) {
                     cycleCounter=0;
                     cycle++;
 
+                    //overlapProbTest 3a/4
+                    ovProbAttempted++;
+                    for (int i=0;i<activeN-1;i++) for (int j=i+1;j<activeN;j++) {
+                        double normalizedRX=particles[i].normR[0]-particles[j].normR[0],
+                               normalizedRY=particles[i].normR[1]-particles[j].normR[1],
+                               rx=particles[i].r[0]-particles[j].r[0],
+                               ry=particles[i].r[1]-particles[j].r[1];
+                        rx-=round(normalizedRX)*boxMatrix[0][0]+round(normalizedRY)*boxMatrix[0][1];
+                        ry-=round(normalizedRX)*boxMatrix[1][0]+round(normalizedRY)*boxMatrix[1][1];
+                        double r2=rx*rx+ry*ry, dr=sqrt(r2);
+                        int energy;
+                        if (dr<maxDistance) {
+                            if (dr<minDistance) energy=1;
+                            else {
+                                double gamma=atan(ry/rx),
+                                        aAngle=particles[j].phi-gamma,
+                                        bAngle=particles[i].phi-gamma;
+                                if (multimerN%2!=0) {
+                                    if (rx>0) bAngle-=C;
+                                    else aAngle-=C;
+                                }
+                                aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle);
+                                energy=checkOverlaps(dr,aAngle,bAngle);
+                            }
+                            if (energy==1) {
+                                ovProbOverlapped++;
+                                j=activeN; i=activeN; break;
+                            }
+                        }
+                    }//overlapProbTest 3b/4
+
                     if (cycle%intervalSampling==0) {
                         double acceptanceRatioR = displacedNumberR/(double)attemptedNumberR;
                         possibleDistance+=sqrt(0.5*deltaR*deltaR)*((double)intervalSampling)*acceptanceRatioR*5.0;  //ostatnie *5.0 - dla bezpieczenstwa; sqrt(0.5*deltaR*0.5*deltaR+0.5*deltaR*0.5*deltaR)=sqrt(0.5*deltaR*deltaR)
@@ -1046,7 +1075,6 @@ int main(int argumentsNumber, char **arguments) {
 
                         if (cycle>cyclesOfEquilibration) {
                             if (timeEquilibration==0) timeEquilibration=time(0);
-                            //if (!testujOverlapProbab) testujOverlapProbab=true; //overlapProbTest 4/5
 
                             int collidingPairs=0;
                             if (countCollidingPairs) {
@@ -1106,13 +1134,14 @@ int main(int argumentsNumber, char **arguments) {
                                 fprintf(fileConfigurations,"%.1f %.1f %.17f %.17f %ld %.17f %.17f %.17f %.17f %.17f,%.17f,%.17f,%.17f {",randomStartStep[0],randomStartStep[1],rho,pacFrac,(cycle+arg5),boxMatrix[0][0],boxMatrix[1][1],boxMatrix[0][1],deltaR,massCenter[0][0],massCenter[0][1],massCenter[1][0],massCenter[1][1]);
                                 for (int i=0;i<activeN;i++)
                                     fprintf(fileConfigurations,"m[%.17f,%.17f,%.17f,%.12f,%.12f,%d],",particles[i].r[0],particles[i].r[1],particles[i].phi,multimerS,multimerD,multimerN);
-                                fprintf(fileConfigurations,"{Opacity->0.2,Red,Polygon[{{0,0},{%.12f,%.12f},{%.12f,%.12f},{%.12f,%.12f}}]},{Opacity->0.2,Green,Disk[{%.12f,%.12f},%.12f]}}",boxMatrix[0][0],boxMatrix[1][0],boxMatrix[0][0]+boxMatrix[0][1],boxMatrix[1][0]+boxMatrix[1][1],boxMatrix[0][1],boxMatrix[1][1],particles[indexScanned].r[0],particles[indexScanned].r[1],neighRadius);
+                                fprintf(fileConfigurations,"{Opacity[0.2],Red,Polygon[{{0,0},{%.12f,%.12f},{%.12f,%.12f},{%.12f,%.12f}}]},{Opacity[0.2],Green,Disk[{%.12f,%.12f},%.12f]}}",boxMatrix[0][0],boxMatrix[1][0],boxMatrix[0][0]+boxMatrix[0][1],boxMatrix[1][0]+boxMatrix[1][1],boxMatrix[0][1],boxMatrix[1][1],particles[indexScanned].r[0],particles[indexScanned].r[1],neighRadius);
                                 fprintf(fileConfigurations,"\n==========================================\n\n\nboxMatrix[0][0]=%.12f, boxMatrix[1][1]=%.12f, boxMatrix[1][0]=boxMatrix[0][1]=%.12f",boxMatrix[0][0],boxMatrix[1][1],boxMatrix[1][0]);
                                 fclose(fileConfigurations);
                             }
                         } else {
                             if (acceptanceRatioR>desiredAcceptanceRatioR) deltaR*=1.05; else deltaR*=0.95;
                             if (deltaR>maxDeltaR) deltaR=maxDeltaR;
+                            deltaPhi=deltaR*2.0*sin(C);
                         }
                         attemptedNumberR=0; displacedNumberR=0;
                     }
@@ -1271,9 +1300,9 @@ int main(int argumentsNumber, char **arguments) {
                     fprintf(fileConfigurations,"m[%.17f,%.17f,%.17f,%.12f,%.12f,%d],",particles[i].r[0],particles[i].r[1],particles[i].phi,multimerS,multimerD,multimerN);
                     fprintf(fileConfigurationsList,"m[%.12f+x,%.12f+y,%.12f,%.12f,%.12f,%d],",particles[i].r[0],particles[i].r[1],particles[i].phi,multimerS,multimerD,multimerN);
                 }
-                fprintf(fileConfigurations,"{Opacity->0.2,Red,Polygon[{{0,0},{%.12f,%.12f},{%.12f,%.12f},{%.12f,%.12f}}]},{Opacity->0.2,Green,Disk[{%.12f,%.12f},%.12f]},{Opacity->0.7,Black,Disk[{%.12f,%.12f},%.12f]},{Opacity->0.4,Black,Disk[{%.12f,%.12f},%.12f]}}",boxMatrix[0][0],boxMatrix[1][0],boxMatrix[0][0]+boxMatrix[0][1],boxMatrix[1][0]+boxMatrix[1][1],boxMatrix[0][1],boxMatrix[1][1],particles[indexScanned].r[0],particles[indexScanned].r[1],neighRadius,massCenterLattice[0][0],massCenterLattice[0][1],multimerD,massCenter[0][0],massCenter[0][1],multimerD);
+                fprintf(fileConfigurations,"{Opacity[0.2],Red,Polygon[{{0,0},{%.12f,%.12f},{%.12f,%.12f},{%.12f,%.12f}}]},{Opacity[0.2],Green,Disk[{%.12f,%.12f},%.12f]},{Opacity[0.7],Black,Disk[{%.12f,%.12f},%.12f]},{Opacity[0.4],Black,Disk[{%.12f,%.12f},%.12f]}}",boxMatrix[0][0],boxMatrix[1][0],boxMatrix[0][0]+boxMatrix[0][1],boxMatrix[1][0]+boxMatrix[1][1],boxMatrix[0][1],boxMatrix[1][1],particles[indexScanned].r[0],particles[indexScanned].r[1],neighRadius,massCenterLattice[0][0],massCenterLattice[0][1],multimerD,massCenter[0][0],massCenter[0][1],multimerD);
                 fprintf(fileConfigurations,"\n==========================================\n\n\nboxMatrix[0][0]=%.12f, boxMatrix[1][1]=%.12f, boxMatrix[1][0]=boxMatrix[0][1]=%.12f",boxMatrix[0][0],boxMatrix[1][1],boxMatrix[1][0]);
-                fprintf(fileConfigurationsList,"{Opacity->If[x==0 && y==0,0.4,0],Red,Polygon[{{0,0},{%.12f,%.12f},{%.12f,%.12f},{%.12f,%.12f}}]},{Opacity->If[x==0 && y==0,0.4,0],Green,Disk[{%.12f,%.12f},%.12f]}};\nconfigurationsList=Append[configurationsList,g[%.12f,multimers[%.12f,%.12f,kolorIndex=1],multimers[%.12f,%.12f,kolorIndex=1],multimers[%.12f,%.12f,kolorIndex=1],multimers[0,0,kolorIndex=1]]];\n",
+                fprintf(fileConfigurationsList,"{Opacity[If[x==0 && y==0,0.4,0]],Red,Polygon[{{0,0},{%.12f,%.12f},{%.12f,%.12f},{%.12f,%.12f}}]},{Opacity[If[x==0 && y==0,0.4,0]],Green,Disk[{%.12f,%.12f},%.12f]}};\nconfigurationsList=Append[configurationsList,g[%.12f,multimers[%.12f,%.12f,kolorIndex=1],multimers[%.12f,%.12f,kolorIndex=1],multimers[%.12f,%.12f,kolorIndex=1],multimers[0,0,kolorIndex=1]]];\n",
                         boxMatrix[0][0],boxMatrix[1][0],boxMatrix[0][0]+boxMatrix[0][1],boxMatrix[1][0]+boxMatrix[1][1],boxMatrix[0][1],boxMatrix[1][1],particles[indexScanned].r[0],particles[indexScanned].r[1],neighRadius,pacFrac,boxMatrix[0][0],boxMatrix[1][0],boxMatrix[0][0]+boxMatrix[0][1],boxMatrix[1][0]+boxMatrix[1][1],boxMatrix[0][1],boxMatrix[1][1]);
             }
 
@@ -1303,5 +1332,5 @@ int main(int argumentsNumber, char **arguments) {
     }
     printf("\nTime for equilibrations: %ldsec ,  time for measurments: %ldsec, time for math: %ldsec.\n",timeEq,timeMe,timeMath);
     printf("\nSimulation has been completed.\n");
-    //printf("\n\nprobability of NO-OVERLAPS = %.5f\n",1-ovProbOverlapped/(double)ovProbAttempted);   //overlapProbTest 5/5
+    printf("\n\nprobability of NO-OVERLAPS = %.15f\n",1.0-ovProbOverlapped/(double)ovProbAttempted);   //overlapProbTest 4/4
 }

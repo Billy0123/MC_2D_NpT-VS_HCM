@@ -9,7 +9,7 @@
 #include "MTGenerator.h"
 
 int N,gaps,activeN,loadedConfiguration,loadType=0,loadedSetStartGenerator,loadedSetGenerator,iterationsNumber,
-    growing,multimerN,countCollidingPairs,ODFLength,OCFMode,skipFirstIteration,saveConfigurations,
+    growing,multimerN,mainParticleType,rowsOfMainParticles,countCollidingPairs,ODFLength,OCFMode,skipFirstIteration,saveConfigurations,
     useSpecificDirectory,useFileToIterate,fileIterateIterationsNumber=0,actIteration=0,multiplyArgument,
     onlyMath[2]={0,0};
 long cyclesOfEquilibration,cyclesOfMeasurement,timeEq=0,timeMe=0,timeMath=0,intervalSampling,intervalOutput,intervalResults,intervalOrientations,savedConfigurationsInt;
@@ -17,11 +17,11 @@ double maxDeltaR,desiredAcceptanceRatioR,desiredAcceptanceRatioV,
        startMinPacFrac,startMaxPacFrac,minArg,maxArg,loadedArg,
        intervalMin[10],intervalMax[10],intervalDelta[10],
        startArg,deltaR,deltaPhi,deltaV=0.1, //*sigma(=1)
-       multimerS,multimerD,randomStartStep[2],normalizingDenominator,
+       multimerS,multimerD,diskD,randomStartStep[2],normalizingDenominator,
        neighRadius,neighRadius2,neighRadiusMod,neighSafeDistance,multiplyFactor,pressureRealOfNotFluid,
        iterationTable[1000][2],pi=3.1415926535898;
-double L,C,ROkreguOpisanego,absoluteMinimum,absoluteMinimum2,minDistance,maxDistance,VcpPerParticle;
-char buffer[200]="",bufferN[20],bufferGaps[20],bufferG[5],bufferMN[20],bufferMS[20],bufferMD[20],bufferFolderIndex[5],
+double L,C,ROkreguOpisanego,absoluteMinimum,absoluteMinimum2,minDistance,maxDistance,maxDistanceHCMHD,VcpPerParticle;
+char buffer[200]="",bufferN[20],bufferGaps[20],bufferG[5],bufferMN[20],bufferMS[20],bufferMD[20],bufferRows[20],bufferDiskD[20],bufferFolderIndex[5],
      resultsFileName[200]="ResultsSummary.txt",
      excelResultsFileName[200]="ExcelResultsSummary.txt",
      configurationsFileName[200]="Configurations",
@@ -40,6 +40,7 @@ typedef struct particle {
     double r[2], normR[2];  //x,y
     double phi;   //kąt mierzony od kierunku x
     int neighbours[50], neighCounter;
+    bool HCMtype;   //HCMtype: false-HD,true-HCM
     //int cell[2]; //matrix 2/16
 } particle;
 
@@ -294,6 +295,12 @@ int initPositions (particle *particles, double boxMatrix[2][2], double matrixOfP
         particles[i].normR[1]=(boxMatrix[1][0]*particles[i].r[0]-boxMatrix[0][0]*particles[i].r[1])/normalizingDenominator;
         particles[i].phi=startAngleInRows[rowCounter%2];
         actualPosition[0]+=interval[0];
+
+        //rzędy poziome
+        int minMainTypeRow=(matrixOfParticlesSize[0]-rowsOfMainParticles)/2, maxMainTypeRow=minMainTypeRow+rowsOfMainParticles;
+        if (rowCounter>minMainTypeRow && rowCounter<=maxMainTypeRow) particles[i].HCMtype=mainParticleType==1;
+        else particles[i].HCMtype=mainParticleType==0;
+
         if ((rowCounter%2)*rowShift-actualPosition[0]+boxMatrix[0][0]<initPeriodicImageMinDistance) {  //sprawdzenie czy kolejna wstawiona cząstka nie przekryje swojego obrazu periodycznego
             actualPosition[0]=(++rowCounter%2)*rowShift;
             actualPosition[1]+=interval[1];
@@ -318,27 +325,47 @@ void adjustAngles (particle *particles, double boxMatrix[2][2]) {
             rx-=round(normalizedRX)*boxMatrix[0][0]+round(normalizedRY)*boxMatrix[0][1];
             ry-=round(normalizedRX)*boxMatrix[1][0]+round(normalizedRY)*boxMatrix[1][1];
             double r2=rx*rx+ry*ry, dr=sqrt(r2);
-            int energy;
-            if (dr<maxDistance) {
-                if (dr<minDistance) energy=1;
-                else {
+            int energy=0;
+            if (particles[i].HCMtype && particles[j].HCMtype) {  //both HCM
+                if (dr<maxDistance) {
+                    if (dr<minDistance) energy=1;
+                    else {
+                        double gamma=atan(ry/rx),
+                               aAngle=particles[j].phi-gamma,
+                               bAngle=particles[i].phi-gamma;
+                        if (multimerN%2!=0) {
+                            if (rx>0) bAngle-=C;
+                            else aAngle-=C;
+                        }
+                        aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle);
+                        energy=checkOverlaps(dr,aAngle,bAngle);
+                    }
+                }
+            } else if (!particles[i].HCMtype && !particles[j].HCMtype) { //both HD
+                if (dr<diskD) energy=1;
+            } else {    //HD-HCM / HCM-HD
+                if (dr<maxDistanceHCMHD) {
                     double gamma=atan(ry/rx),
-                            aAngle=particles[j].phi-gamma,
-                            bAngle=particles[i].phi-gamma;
+                           aAngle=particles[j].phi-gamma,
+                           bAngle=particles[i].phi-gamma;
                     if (multimerN%2!=0) {
                         if (rx>0) bAngle-=C;
                         else aAngle-=C;
                     }
                     aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle);
-                    energy=checkOverlaps(dr,aAngle,bAngle);
+                    double angle=particles[j].HCMtype?aAngle:bAngle;
+                    double DiscX = cos(angle)*ROkreguOpisanego,
+                           DiscY = sin(angle)*ROkreguOpisanego,
+                           xDistance = dr-DiscX;
+                    if (sqrt(xDistance*xDistance+DiscY*DiscY)<(multimerD+diskD)/2.0) energy=1;
                 }
-                if (energy==1) {
-                    collidingPairs++;
-                    for (int k=0;k<activeN;k++) {
-                        particles[k].phi+=0.000001;
-                    }
-                    i=activeN; j=activeN; break;
+            }
+            if (energy==1) {
+                collidingPairs++;
+                for (int k=0;k<activeN;k++) {
+                    particles[k].phi+=0.000001;
                 }
+                i=activeN; j=activeN; break;
             }
         }
     } while (collidingPairs>0);
@@ -412,9 +439,26 @@ int getEnergy (particle *particles, int index, double boxMatrix[2][2]) {
         rx-=round(normalizedRX)*boxMatrix[0][0]+round(normalizedRY)*boxMatrix[0][1];
         ry-=round(normalizedRX)*boxMatrix[1][0]+round(normalizedRY)*boxMatrix[1][1];
         double r2=rx*rx+ry*ry, dr=sqrt(r2);
-        if (dr<maxDistance) {
-            if (dr<minDistance) energy=1; //analyticMethodForEvenHCM 1/6
-            else {
+        if (particles[index].HCMtype && particles[particles[index].neighbours[i]].HCMtype) {  //both HCM
+            if (dr<maxDistance) {
+                if (dr<minDistance) energy=1; //analyticMethodForEvenHCM 1/6
+                else {
+                    double gamma=atan(ry/rx),
+                           aAngle=particles[index].phi-gamma,
+                           bAngle=particles[particles[index].neighbours[i]].phi-gamma;
+                    if (multimerN%2!=0) {
+                        if (rx>0) bAngle-=C;
+                        else aAngle-=C;
+                    }
+                    aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle); //analyticMethodForEvenHCM 2/6
+                    energy=checkOverlaps(dr,aAngle,bAngle);
+                    //energy=checkOverlapsAnalyticalMethodHCM(dr,aAngle,bAngle);
+                } //analyticMethodForEvenHCM 3/6
+            }
+        } else if (!particles[index].HCMtype && !particles[particles[index].neighbours[i]].HCMtype) { //both HD
+            if (dr<diskD) energy=1;
+        } else {    //HD-HCM / HCM-HD
+            if (dr<maxDistanceHCMHD) {
                 double gamma=atan(ry/rx),
                        aAngle=particles[index].phi-gamma,
                        bAngle=particles[particles[index].neighbours[i]].phi-gamma;
@@ -422,12 +466,15 @@ int getEnergy (particle *particles, int index, double boxMatrix[2][2]) {
                     if (rx>0) bAngle-=C;
                     else aAngle-=C;
                 }
-                aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle); //analyticMethodForEvenHCM 2/6
-                energy=checkOverlaps(dr,aAngle,bAngle);
-                //energy=checkOverlapsAnalyticalMethodHCM(dr,aAngle,bAngle);
-            } //analyticMethodForEvenHCM 3/6
-            if (energy==1) i=particles[index].neighCounter;
+                aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle);
+                double angle=particles[index].HCMtype?aAngle:bAngle;
+                double DiscX = cos(angle)*ROkreguOpisanego,
+                       DiscY = sin(angle)*ROkreguOpisanego,
+                       xDistance = dr-DiscX;
+                if (sqrt(xDistance*xDistance+DiscY*DiscY)<(multimerD+diskD)/2.0) energy=1;
+            }
         }
+        if (energy==1) i=particles[index].neighCounter;
     }
     return energy;
 }
@@ -441,7 +488,7 @@ int attemptToDisplaceAParticle (particle *particles, int index, double boxMatrix
     for (int i=0;i<2;i++) particles[index].r[i]+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaR;
     particles[index].normR[0]=(-boxMatrix[1][1]*particles[index].r[0]+boxMatrix[1][0]*particles[index].r[1])/normalizingDenominator;
     particles[index].normR[1]=(boxMatrix[1][0]*particles[index].r[0]-boxMatrix[0][0]*particles[index].r[1])/normalizingDenominator;
-    particles[index].phi+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaPhi;
+    if (particles[index].HCMtype) particles[index].phi+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaPhi;
     //checkSinglePeriodicBoundaryConditions(&particles[index],boxMatrix); //matrix 6/16
     //for (int i=0;i<2;i++) particles[index].cell[i]=(int)(particles[index].normR[i]*bCSize[i]); //matrix 7/16
     int newEnPot=getEnergy(particles,index,boxMatrix);
@@ -451,7 +498,7 @@ int attemptToDisplaceAParticle (particle *particles, int index, double boxMatrix
             particles[index].normR[i]=oldNormR[i];
             //particles[index].cell[i]=oldCell[i]; //matrix 8/16
         }
-        particles[index].phi=oldPhi;
+        if (particles[index].HCMtype) particles[index].phi=oldPhi;
         result=0;
     } else {
         checkSinglePeriodicBoundaryConditions(&particles[index],boxMatrix); //matrix(comment) 9/16
@@ -543,10 +590,27 @@ int attemptToChangeVolume (particle *particles, double pressure, double boxMatri
             rx-=round(normalizedRX)*newBoxMatrix[0][0]+round(normalizedRY)*newBoxMatrix[0][1];
             ry-=round(normalizedRX)*newBoxMatrix[1][0]+round(normalizedRY)*newBoxMatrix[1][1];
             double r2=rx*rx+ry*ry, dr=sqrt(r2);
-            if (dr<maxDistance) {
-                int energy;
-                if (dr<minDistance) energy=1; //analyticMethodForEvenHCM 4/6
-                else {
+            int energy=0;
+            if (particles[i].HCMtype && particles[particles[i].neighbours[j]].HCMtype) {  //both HCM
+                if (dr<maxDistance) {
+                    if (dr<minDistance) energy=1; //analyticMethodForEvenHCM 4/6
+                    else {
+                        double gamma=atan(ry/rx),
+                               aAngle=particles[particles[i].neighbours[j]].phi-gamma,
+                               bAngle=particles[i].phi-gamma;
+                        if (multimerN%2!=0) {
+                            if (rx>0) bAngle-=C;
+                            else aAngle-=C;
+                        }
+                        aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle); //analyticMethodForEvenHCM 5/6
+                        energy=checkOverlaps(dr,aAngle,bAngle);
+                        //energy=checkOverlapsAnalyticalMethodHCM(dr,aAngle,bAngle);
+                    } //analyticMethodForEvenHCM 6/6
+                }
+            } else if (!particles[i].HCMtype && !particles[particles[i].neighbours[j]].HCMtype) { //both HD
+                if (dr<diskD) energy=1;
+            } else {    //HD-HCM / HCM-HD
+                if (dr<maxDistanceHCMHD) {
                     double gamma=atan(ry/rx),
                            aAngle=particles[particles[i].neighbours[j]].phi-gamma,
                            bAngle=particles[i].phi-gamma;
@@ -554,14 +618,17 @@ int attemptToChangeVolume (particle *particles, double pressure, double boxMatri
                         if (rx>0) bAngle-=C;
                         else aAngle-=C;
                     }
-                    aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle); //analyticMethodForEvenHCM 5/6
-                    energy=checkOverlaps(dr,aAngle,bAngle);
-                    //energy=checkOverlapsAnalyticalMethodHCM(dr,aAngle,bAngle);
-                } //analyticMethodForEvenHCM 6/6
-                if (energy==1) {
-                    result=0;
-                    i=activeN; break;
+                    aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle);
+                    double angle=particles[particles[i].neighbours[j]].HCMtype?aAngle:bAngle;
+                    double DiscX = cos(angle)*ROkreguOpisanego,
+                           DiscY = sin(angle)*ROkreguOpisanego,
+                           xDistance = dr-DiscX;
+                    if (sqrt(xDistance*xDistance+DiscY*DiscY)<(multimerD+diskD)/2.0) energy=1;
                 }
+            }
+            if (energy==1) {
+                result=0;
+                i=activeN; break;
             }
         }
     }
@@ -601,6 +668,8 @@ void addAppendix (char *fileName, char *JOBID, bool jobIdOn) {
     strncat(buffer,"_mN-",5); strncat(buffer,bufferMN,20);
     strncat(buffer,"_mS-",5); strncat(buffer,bufferMS,20);
     strncat(buffer,"_mD-",5); strncat(buffer,bufferMD,20);
+    strncat(buffer,"_r-",5); strncat(buffer,bufferRows,20);
+    strncat(buffer,"_d-",5); strncat(buffer,bufferDiskD,20);
     mkdir(buffer,S_IRWXU);
     strncat(buffer,"/",2);
     if (jobIdOn) {
@@ -697,40 +766,43 @@ int main(int argumentsNumber, char **arguments) {
                 case 3:multimerN=strtol(data,NULL,10);break;
                 case 4:multimerS=strtod(data,NULL);break;
                 case 5:multimerD=strtod(data,NULL);break;
-                case 6:pressureRealOfNotFluid=strtod(data,NULL);break;
-                case 7:growing=strtol(data,NULL,10);break;
-                case 8:loadedConfiguration=strtol(data,NULL,10);break;
-                case 9:loadedArg=strtod(data,NULL);break;
-                case 10:{strcpy(loadedJOBID,"j-"); strncat(loadedJOBID,data,licznik);}break;
-                case 11:loadedSetStartGenerator=strtol(data,NULL,10);break;
-                case 12:loadedSetGenerator=strtol(data,NULL,10);break;
-                case 13:iterationsNumber=strtol(data,NULL,10);break;
-                case 14:countCollidingPairs=strtol(data,NULL,10);break;
-                case 15:intervalSampling=strtol(data,NULL,10);break;
-                case 16:intervalOutput=strtol(data,NULL,10);break;
-                case 17:saveConfigurations=strtol(data,NULL,10);break;
-                case 18:savedConfigurationsInt=strtol(data,NULL,10);break;
-                case 19:ODFLength=strtol(data,NULL,10);break;
-                case 20:OCFMode=strtol(data,NULL,10);break;
-                case 21:neighRadiusMod=strtod(data,NULL);break;
-                case 22:intervalOrientations=strtol(data,NULL,10);break;
-                case 23:skipFirstIteration=strtol(data,NULL,10);break;
-                case 24:useSpecificDirectory=strtol(data,NULL,10);break;
-                case 25:cyclesOfEquilibration=strtol(data,NULL,10);break;
-                case 26:cyclesOfMeasurement=strtol(data,NULL,10);break;
-                case 27:intervalResults=strtol(data,NULL,10);break;
-                case 28:maxDeltaR=strtod(data,NULL);break;
-                case 29:desiredAcceptanceRatioR=strtod(data,NULL);break;
-                case 30:desiredAcceptanceRatioV=strtod(data,NULL);break;
-                case 31:useFileToIterate=strtol(data,NULL,10);break;
-                case 32:startMinPacFrac=strtod(data,NULL);break;
-                case 33:startMaxPacFrac=strtod(data,NULL);break;
-                case 34:minArg=strtod(data,NULL);break;
-                case 35:maxArg=strtod(data,NULL);break;
-                case 36:multiplyArgument=strtol(data,NULL,10);break;
-                case 37:multiplyFactor=strtod(data,NULL);break;
+                case 6:mainParticleType=strtol(data,NULL,10);break;
+                case 7:rowsOfMainParticles=strtol(data,NULL,10);break;
+                case 8:diskD=strtod(data,NULL);break;
+                case 9:pressureRealOfNotFluid=strtod(data,NULL);break;
+                case 10:growing=strtol(data,NULL,10);break;
+                case 11:loadedConfiguration=strtol(data,NULL,10);break;
+                case 12:loadedArg=strtod(data,NULL);break;
+                case 13:{strcpy(loadedJOBID,"j-"); strncat(loadedJOBID,data,licznik);}break;
+                case 14:loadedSetStartGenerator=strtol(data,NULL,10);break;
+                case 15:loadedSetGenerator=strtol(data,NULL,10);break;
+                case 16:iterationsNumber=strtol(data,NULL,10);break;
+                case 17:countCollidingPairs=strtol(data,NULL,10);break;
+                case 18:intervalSampling=strtol(data,NULL,10);break;
+                case 19:intervalOutput=strtol(data,NULL,10);break;
+                case 20:saveConfigurations=strtol(data,NULL,10);break;
+                case 21:savedConfigurationsInt=strtol(data,NULL,10);break;
+                case 22:ODFLength=strtol(data,NULL,10);break;
+                case 23:OCFMode=strtol(data,NULL,10);break;
+                case 24:neighRadiusMod=strtod(data,NULL);break;
+                case 25:intervalOrientations=strtol(data,NULL,10);break;
+                case 26:skipFirstIteration=strtol(data,NULL,10);break;
+                case 27:useSpecificDirectory=strtol(data,NULL,10);break;
+                case 28:cyclesOfEquilibration=strtol(data,NULL,10);break;
+                case 29:cyclesOfMeasurement=strtol(data,NULL,10);break;
+                case 30:intervalResults=strtol(data,NULL,10);break;
+                case 31:maxDeltaR=strtod(data,NULL);break;
+                case 32:desiredAcceptanceRatioR=strtod(data,NULL);break;
+                case 33:desiredAcceptanceRatioV=strtod(data,NULL);break;
+                case 34:useFileToIterate=strtol(data,NULL,10);break;
+                case 35:startMinPacFrac=strtod(data,NULL);break;
+                case 36:startMaxPacFrac=strtod(data,NULL);break;
+                case 37:minArg=strtod(data,NULL);break;
+                case 38:maxArg=strtod(data,NULL);break;
+                case 39:multiplyArgument=strtol(data,NULL,10);break;
+                case 40:multiplyFactor=strtod(data,NULL);break;
                 default:
-                    switch ((dataIndex-38)%3) {
+                    switch ((dataIndex-41)%3) {
                         case 0: intervalMin[intervalLicznik++/3]=strtod(data,NULL);break;
                         case 1: intervalMax[intervalLicznik++/3]=strtod(data,NULL);break;
                         case 2: intervalDelta[intervalLicznik++/3]=strtod(data,NULL);break;
@@ -757,7 +829,7 @@ int main(int argumentsNumber, char **arguments) {
                     if (useFileToIterate) if(createIterationTable()) return 0;
                 } else correctNumberOfArguments=0; break;
             case 1: //ustaw JOBID, singleRun dla parametrow zadanych bezposrednio
-                if (argumentsNumber==12) {
+                if (argumentsNumber==14) {
                     useFileToIterate=0;
                     strncat(JOBID,arguments[2],50); strcpy(loadedJOBID,JOBID);
                     if (growing) {
@@ -772,9 +844,11 @@ int main(int argumentsNumber, char **arguments) {
                     growing=strtol(arguments[9],NULL,10);
                     iterationsNumber=strtol(arguments[10],NULL,10);
                     useSpecificDirectory=strtol(arguments[11],NULL,10);
+                    rowsOfMainParticles=strtol(arguments[12],NULL,10);
+                    diskD=strtod(arguments[13],NULL);
                 } else correctNumberOfArguments=0; break;
             case 2: //ustaw JOBID, run z najistotniejszymi parametrami z 'config.txt' nadpisanymi z poziomu wywolania
-                if (argumentsNumber==12) {
+                if (argumentsNumber==14) {
                     if (useFileToIterate) if(createIterationTable()) return 0;
                     strncat(JOBID,arguments[2],50);
                     N=strtol(arguments[3],NULL,10);
@@ -786,9 +860,11 @@ int main(int argumentsNumber, char **arguments) {
                     useSpecificDirectory=strtol(arguments[9],NULL,10);
                     skipFirstIteration=strtol(arguments[10],NULL,10);
                     pointNumber=strtol(arguments[11],NULL,10);
+                    rowsOfMainParticles=strtol(arguments[12],NULL,10);
+                    diskD=strtod(arguments[13],NULL);
                 } else correctNumberOfArguments=0; break;
             case 3: //ustaw JOBID, tryb loadowany #1 od zadanego argumentu w odpowiednim folderze i trybie
-                if (argumentsNumber==13) {
+                if (argumentsNumber==15) {
                     if (useFileToIterate) if(createIterationTable()) return 0;
                     strncat(JOBID,arguments[2],50);
                     strcpy(loadedJOBID,"j-"); strncat(loadedJOBID,arguments[3],50);
@@ -802,9 +878,11 @@ int main(int argumentsNumber, char **arguments) {
                     iterationsNumber=strtol(arguments[10],NULL,10);
                     useSpecificDirectory=strtol(arguments[11],NULL,10);
                     skipFirstIteration=strtol(arguments[12],NULL,10);
+                    rowsOfMainParticles=strtol(arguments[13],NULL,10);
+                    diskD=strtod(arguments[14],NULL);
                 } else correctNumberOfArguments=0; break;
             case 4: //ustaw JOBID, tryb loadowany #2 od zadanego numeru punktu (0->startArg) w odpowiednim folderze i trybie
-                if (argumentsNumber==13) {
+                if (argumentsNumber==15) {
                     if (useFileToIterate) if(createIterationTable()) return 0;
                     strncat(JOBID,arguments[2],50);
                     strcpy(loadedJOBID,"j-"); strncat(loadedJOBID,arguments[3],50);
@@ -818,9 +896,11 @@ int main(int argumentsNumber, char **arguments) {
                     iterationsNumber=strtol(arguments[10],NULL,10);
                     useSpecificDirectory=strtol(arguments[11],NULL,10);
                     skipFirstIteration=strtol(arguments[12],NULL,10);
+                    rowsOfMainParticles=strtol(arguments[13],NULL,10);
+                    diskD=strtod(arguments[14],NULL);
                 } else correctNumberOfArguments=0; break;
             case 5: //ustaw JOBID, zrob tryb ONLYMATH, gdzie argument wskazuje ile poczatkowych linii Results ma byc pominietych
-                if (argumentsNumber==12) {
+                if (argumentsNumber==14) {
                     if (useFileToIterate) if(createIterationTable()) return 0;
                     strncat(JOBID,arguments[2],50); strcpy(loadedJOBID,JOBID);
                     onlyMath[0]=1;
@@ -835,6 +915,8 @@ int main(int argumentsNumber, char **arguments) {
                     iterationsNumber=strtol(arguments[10],NULL,10);
                     useSpecificDirectory=strtol(arguments[11],NULL,10);
                     skipFirstIteration=0;
+                    rowsOfMainParticles=strtol(arguments[12],NULL,10);
+                    diskD=strtod(arguments[13],NULL);
                 } else correctNumberOfArguments=0; break;
             default: {
                 printf("Wrong type of run! (0-6)\n");
@@ -844,11 +926,11 @@ int main(int argumentsNumber, char **arguments) {
         if (!correctNumberOfArguments) {
             printf("Wrong number of arguments for this type of run!\n");
             printf("If type of run is '0', next arguments: $JOBID\n");
-            printf("If type of run is '1', next arguments: $JOBID, startMinPacFrac, minArg, N, gaps, multimerS, multimerD, growing, iterationsNumber, useSpecificDirectory\n");
-            printf("If type of run is '2', next arguments: $JOBID, N, gaps, multimerS, multimerD, growing, iterationsNumber, useSpecificDirectory, skipFirstIteration, pointNumber\n");
-            printf("If type of run is '3', next arguments: $JOBID, JOBID of configuration to load, N, gaps, multimerS, multimerD, growing, loadedArg, iterationsNumber, useSpecificDirectory, skipFirstIteration\n");
-            printf("If type of run is '4', next arguments: $JOBID, JOBID of configuration to load, N, gaps, multimerS, multimerD, growing, pointNumber, iterationsNumber, useSpecificDirectory, skipFirstIteration\n");
-            printf("If type of run is '5', next arguments: $JOBID, lines to skip from Results, N, gaps, multimerS, multimerD, growing, pointNumber, iterationsNumber, useSpecificDirectory\n");
+            printf("If type of run is '1', next arguments: $JOBID, startMinPacFrac, minArg, N, gaps, multimerS, multimerD, growing, iterationsNumber, useSpecificDirectory, rowsOfMainParticles, diskD\n");
+            printf("If type of run is '2', next arguments: $JOBID, N, gaps, multimerS, multimerD, growing, iterationsNumber, useSpecificDirectory, skipFirstIteration, pointNumber, rowsOfMainParticles, diskD\n");
+            printf("If type of run is '3', next arguments: $JOBID, JOBID of configuration to load, N, gaps, multimerS, multimerD, growing, loadedArg, iterationsNumber, useSpecificDirectory, skipFirstIteration, rowsOfMainParticles, diskD\n");
+            printf("If type of run is '4', next arguments: $JOBID, JOBID of configuration to load, N, gaps, multimerS, multimerD, growing, pointNumber, iterationsNumber, useSpecificDirectory, skipFirstIteration, rowsOfMainParticles, diskD\n");
+            printf("If type of run is '5', next arguments: $JOBID, lines to skip from Results, N, gaps, multimerS, multimerD, growing, pointNumber, iterationsNumber, useSpecificDirectory, rowsOfMainParticles, diskD\n");
             return 0;
         }
     }
@@ -888,12 +970,14 @@ int main(int argumentsNumber, char **arguments) {
     if (multimerN%2==0) minDistance=getMinimalDistanceAnalyticalMethodForEvenHCM(absoluteMinimum,absoluteMinimum);
     else minDistance=getMinimalDistanceAnalyticalMethodForOddHCM(absoluteMinimum,absoluteMinimum-C);
     maxDistance=ROkreguOpisanego*2+multimerD;
+    maxDistanceHCMHD=ROkreguOpisanego+(multimerD+diskD)/2.0;
     neighRadius=neighRadiusMod*maxDistance; neighRadius2=neighRadius*neighRadius; neighSafeDistance=neighRadius-maxDistance;
     if (multimerN==6) VcpPerParticle=minDistance*minDistance*sqrt(3)/2.0;  //dla heksamerow o dowolnym d/\sigma
     else if (multimerN==5) VcpPerParticle=5.0936*multimerD*multimerD;  //dla pentamerów o d/\sigma=1
     //nazwy folderow na podstawie parametrow programu
     sprintf(bufferG,"%d",growing); sprintf(bufferN,"%d",N); sprintf(bufferGaps,"%d",gaps);
     sprintf(bufferMN,"%d",multimerN); sprintf(bufferMS,"%.2f",multimerS); sprintf(bufferMD,"%.6f",multimerD);
+    sprintf(bufferRows,"%d",rowsOfMainParticles); sprintf(bufferDiskD,"%.3f",diskD);
 
     int folderIndex=useSpecificDirectory, checkNext;
     char bufferCheckFolderExisting[200];
@@ -924,14 +1008,14 @@ int main(int argumentsNumber, char **arguments) {
     FILE *fileResults, *fileExcelResults, *fileConfigurations, *fileSavedConfigurations, *fileOrientations, *fileOrientatCorrelFun, *fileConfigurationsList, *fileAllResults, *fileAllOrientations, *fileOrientationsResults, *fileAllOrientationsResults;
     fileResults = fopen(resultsFileName,"rt"); if (fileResults==NULL) {
         fileResults = fopen(resultsFileName,"a");
-        if (saveConfigurations) fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tavNu\tdAvNu\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\tdPhiCyclesInterval\tavAbsDPhi\n");
-        else fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tavNu\tdAvNu\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\n");
+        if (saveConfigurations) fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tavNu\tdAvNu\tavNu12\tdAvNu12\tavNu21\tdAvNu21\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\tdPhiCyclesInterval\tavAbsDPhi\n");
+        else fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tavNu\tdAvNu\tavNu12\tdAvNu12\tavNu21\tdAvNu21\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\n");
         fclose(fileResults);
     }
     fileExcelResults = fopen(excelResultsFileName,"rt"); if (fileExcelResults==NULL) {
         fileExcelResults = fopen(excelResultsFileName,"a");
-        if (saveConfigurations) fprintf(fileExcelResults,"PressureReduced\tV/V_cp\tavNu\tODFMax_All\t<cos(6Phi)>_All\tavB\tavMy\tavE\tdPhiCyclesInterval\tavAbsDPhi\n");
-        else fprintf(fileExcelResults,"PressureReduced\tV/V_cp\tavNu\tODFMax_All\t<cos(6Phi)>_All\tavB\tavMy\tavE\n");
+        if (saveConfigurations) fprintf(fileExcelResults,"PressureReduced\tV/V_cp\tavNu\tavNu12\tavNu21\tODFMax_All\t<cos(6Phi)>_All\tavB\tavMy\tavE\tdPhiCyclesInterval\tavAbsDPhi\n");
+        else fprintf(fileExcelResults,"PressureReduced\tV/V_cp\tavNu\tavNu12\tavNu21\tODFMax_All\t<cos(6Phi)>_All\tavB\tavMy\tavE\n");
         fclose(fileExcelResults);
     }
 
@@ -999,9 +1083,10 @@ int main(int argumentsNumber, char **arguments) {
 
                 normalizingDenominator=pow(boxMatrix[1][0],2)-boxMatrix[0][0]*boxMatrix[1][1];
                 int actIndex=0;
-                while (configurations[actIndex]!='{') actIndex++;
-                actIndex+=3;
+                while (configurations[actIndex]!='{') actIndex++; actIndex++;
                 for (int i=0;i<activeN;i++) {
+                    particles[i].HCMtype=(configurations[actIndex]=='m');
+                    actIndex+=2;
                     for (int j=0;j<3;j++) {
                         char coordinate[50];
                         int licznik=0;
@@ -1010,9 +1095,10 @@ int main(int argumentsNumber, char **arguments) {
                             actIndex++;
                             particles[i].r[j]=strtod(coordinate,NULL);
                         } else {
-                            //actIndex+=22;         //dla mniejszej dokladnosci (%.5f) - dla kompatybilnosci ze starymi plikami
-                            actIndex+=36;
-                            particles[i].phi=strtod(coordinate,NULL);
+                            if (particles[i].HCMtype) {
+                                actIndex+=34;
+                                particles[i].phi=strtod(coordinate,NULL);
+                            } else actIndex++;
                         }
                     }
                     particles[i].normR[0]=(-boxMatrix[1][1]*particles[i].r[0]+boxMatrix[1][0]*particles[i].r[1])/normalizingDenominator;
@@ -1180,24 +1266,44 @@ int main(int argumentsNumber, char **arguments) {
                                            ry=particles[i].r[1]-particles[j].r[1];
                                     rx-=round(normalizedRX)*boxMatrix[0][0]+round(normalizedRY)*boxMatrix[0][1];
                                     ry-=round(normalizedRX)*boxMatrix[1][0]+round(normalizedRY)*boxMatrix[1][1];
-                                    double r2=rx*rx+ry*ry, dr=sqrt(r2);
-                                    int energy;
-                                    if (dr<maxDistance) {
-                                        if (dr<minDistance) energy=1;  //analyticCheck 1/3
-                                        else {
+                                    double r2=rx*rx+ry*ry, dr=sqrt(r2);     
+                                    int energy=0;
+                                    if (particles[i].HCMtype && particles[j].HCMtype) {  //both HCM
+                                        if (dr<maxDistance) {
+                                            if (dr<minDistance) energy=1; //analyticCheck 1/3
+                                            else {
+                                                double gamma=atan(ry/rx),
+                                                       aAngle=particles[j].phi-gamma,
+                                                       bAngle=particles[i].phi-gamma;
+                                                if (multimerN%2!=0) {
+                                                    if (rx>0) bAngle-=C;
+                                                    else aAngle-=C;
+                                                }
+                                                aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle); //analyticCheck 2/3
+                                                energy=checkOverlaps(dr,aAngle,bAngle);
+                                                //energy=checkOverlapsAnalyticalMethodHCM(dr,aAngle,bAngle);
+                                            } //analyticCheck 3/3
+                                        }
+                                    } else if (!particles[i].HCMtype && !particles[j].HCMtype) { //both HD
+                                        if (dr<diskD) energy=1;
+                                    } else {    //HD-HCM / HCM-HD
+                                        if (dr<maxDistanceHCMHD) {
                                             double gamma=atan(ry/rx),
-                                                    aAngle=particles[j].phi-gamma,
-                                                    bAngle=particles[i].phi-gamma;
+                                                   aAngle=particles[j].phi-gamma,
+                                                   bAngle=particles[i].phi-gamma;
                                             if (multimerN%2!=0) {
                                                 if (rx>0) bAngle-=C;
                                                 else aAngle-=C;
                                             }
-                                            aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle);  //analyticCheck 2/3
-                                            energy=checkOverlaps(dr,aAngle,bAngle);
-                                            //energy=checkOverlapsAnalyticalMethodHCM(dr,aAngle,bAngle);
-                                        }  //analyticCheck 3/3
-                                        if (energy==1) collidingPairs++;
+                                            aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle);
+                                            double angle=particles[j].HCMtype?aAngle:bAngle;
+                                            double DiscX = cos(angle)*ROkreguOpisanego,
+                                                   DiscY = sin(angle)*ROkreguOpisanego,
+                                                   xDistance = dr-DiscX;
+                                            if (sqrt(xDistance*xDistance+DiscY*DiscY)<(multimerD+diskD)/2.0) energy=1;
+                                        }
                                     }
+                                    if (energy==1) collidingPairs++;
                                 }
                             }
 
@@ -1205,16 +1311,16 @@ int main(int argumentsNumber, char **arguments) {
                             if (cycle%intervalResults==0)
                                 fprintf(fileAllResults,"%ld\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t\n",(cycle+arg5),volume,boxMatrix[0][0],boxMatrix[1][1],boxMatrix[1][0],rho,pacFrac);
 
-                            if (cycle%intervalOrientations==0) {
+                            if (cycle%intervalOrientations==0) { //możliwość wylosowania HD (brak sprawdzania tego)
                                 /////skan po konkretnej cząstce (np. dla 224: 14*(16/2)-(14/2)=105, etc.) - w srodku by nie skakala na granicy pudla periodycznego; bezposrednie uzycie w Mathematice (format tablicy)
                                 if (cycle-cyclesOfEquilibration>=cyclesOfMeasurement)
                                     fprintf(fileOrientations,"{%.12f,%.12f,%.12f}}",particles[indexScanned].r[0],particles[indexScanned].r[1],particles[indexScanned].phi);
                                 else fprintf(fileOrientations,"{%.12f,%.12f,%.12f},",particles[indexScanned].r[0],particles[indexScanned].r[1],particles[indexScanned].phi);
                                 /////skan po wszystkich cząstkach
-                                for (int i=0;i<activeN-1;i++) fprintf(fileAllOrientations,"%.12f,",particles[i].phi);
-                                fprintf(fileAllOrientations,"%.12f\n",particles[activeN-1].phi);
+                                for (int i=0;i<activeN-1;i++) if (particles[i].HCMtype) fprintf(fileAllOrientations,"%.12f,",particles[i].phi);
+                                fprintf(fileAllOrientations,"%.12f\n",particles[activeN-1].phi); //możliwość zapisania HD jeżeli jest ostatnią cząstką w tablicy
                                 /////OCF
-                                if (OCFMode) {
+                                if (OCFMode) { //nie przystosowany do HCM-HD
                                     char bufferText[1000000]="", bufferAngle[20];
                                     for (int i=0;i<activeN;i++) for (int j=0;j<particles[i].neighCounter;j++) {
                                         if (i<particles[i].neighbours[j]) {
@@ -1265,7 +1371,8 @@ int main(int argumentsNumber, char **arguments) {
                                 fprintf(fileConfigurations,"=====================\tConfigurations (data to load)\t=====================\n");
                                 fprintf(fileConfigurations,"%.1f %.1f %.17f %.17f %ld %.17f %.17f %.17f %.17f %.17f {",randomStartStep[0],randomStartStep[1],rho,pressureReduced,(cycle+arg5),boxMatrix[0][0],boxMatrix[1][1],boxMatrix[0][1],deltaR,deltaV);
                                 for (int i=0;i<activeN;i++)
-                                    fprintf(fileConfigurations,"m[%.17f,%.17f,%.17f,%.12f,%.12f,%d],",particles[i].r[0],particles[i].r[1],particles[i].phi,multimerS,multimerD,multimerN);
+                                    if (particles[i].HCMtype) fprintf(fileConfigurations,"m[%.17f,%.17f,%.17f,%.12f,%.12f,%d],",particles[i].r[0],particles[i].r[1],particles[i].phi,multimerS,multimerD,multimerN);
+                                    else fprintf(fileConfigurations,"d[%.17f,%.17f,%.12f],",particles[i].r[0],particles[i].r[1],diskD);
                                 fprintf(fileConfigurations,"{Opacity[0.2],Red,Polygon[{{0,0},{%.12f,%.12f},{%.12f,%.12f},{%.12f,%.12f}}]},{Opacity[0.2],Green,Disk[{%.12f,%.12f},%.12f]}}",boxMatrix[0][0],boxMatrix[1][0],boxMatrix[0][0]+boxMatrix[0][1],boxMatrix[1][0]+boxMatrix[1][1],boxMatrix[0][1],boxMatrix[1][1],particles[indexScanned].r[0],particles[indexScanned].r[1],neighRadius);
                                 fprintf(fileConfigurations,"\n==========================================\n\n\nboxMatrix[0][0]=%.12f, boxMatrix[1][1]=%.12f, boxMatrix[1][0]=boxMatrix[0][1]=%.12f",boxMatrix[0][0],boxMatrix[1][1],boxMatrix[1][0]);
                                 fclose(fileConfigurations);
@@ -1447,9 +1554,9 @@ int main(int argumentsNumber, char **arguments) {
                    s1212=e1212*avVolume, dS1212=fabs(e1212*dAvVolume)+fabs(dE1212*avVolume),
                    s2222=e2222*avVolume, dS2222=fabs(e2222*dAvVolume)+fabs(dE2222*avVolume),
 
-                   nu2211_1111=-s1122/s1111, dNu2211_1111=fabs(dS1122/s1111)+fabs(dS1111*s1122/s1111/s1111),
-                   nu1122_2222=-s1122/s2222, dNu1122_2222=fabs(dS1122/s2222)+fabs(dS2222*s1122/s2222/s2222),
-                   avNu=(nu2211_1111+nu1122_2222)/2.0, dAvNu=(dNu2211_1111+dNu1122_2222)/2.0,
+                   nu12=-s1122/s1111, dNu12=fabs(dS1122/s1111)+fabs(dS1111*s1122/s1111/s1111),
+                   nu21=-s1122/s2222, dNu21=fabs(dS1122/s2222)+fabs(dS2222*s1122/s2222/s2222),
+                   avNu=(nu12+nu21)/2.0, dAvNu=(dNu12+dNu21)/2.0,
 
                    //\lambdaReduced=\lambda*\sigma^2/(kT)
                    l11=multimerS*multimerS/(8.0*(s1111+s1122)), dL11=multimerS*multimerS*(fabs(dS1111)+fabs(dS1122))/(8.0*fabs(s1111+s1122)*fabs(s1111+s1122)),
@@ -1578,11 +1685,11 @@ int main(int argumentsNumber, char **arguments) {
             fileAllOrientationsResults = fopen(allOrientationsResultsFileName,"w");
 
             if (saveConfigurations) {
-                fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%ld\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,avNu,dAvNu,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,savedConfigurationsInt,avAbsDPhi);
-                fprintf(fileExcelResults,"%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%ld\t%.12f\n",pressureReduced,avPacFrac,avNu,ODFMaxAll,averageCos6PhiAll,avB,avMy,avE,savedConfigurationsInt,avAbsDPhi);
+                fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%ld\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,avNu,dAvNu,nu12,dNu12,nu21,dNu21,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,savedConfigurationsInt,avAbsDPhi);
+                fprintf(fileExcelResults,"%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%ld\t%.12f\n",pressureReduced,avPacFrac,avNu,nu12,nu21,ODFMaxAll,averageCos6PhiAll,avB,avMy,avE,savedConfigurationsInt,avAbsDPhi);
             } else {
-                fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,avNu,dAvNu,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll);
-                fprintf(fileExcelResults,"%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",pressureReduced,avPacFrac,avNu,ODFMaxAll,averageCos6PhiAll,avB,avMy,avE);
+                fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,avNu,dAvNu,nu12,dNu12,nu21,dNu21,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll);
+                fprintf(fileExcelResults,"%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",pressureReduced,avPacFrac,avNu,nu12,nu21,ODFMaxAll,averageCos6PhiAll,avB,avMy,avE);
             }
 
             if (!onlyMath[0]) {
@@ -1593,8 +1700,13 @@ int main(int argumentsNumber, char **arguments) {
                 fprintf(fileConfigurations,"%.1f %.1f %.17f %.17f %ld %.17f %.17f %.17f %.17f %.17f {",randomStartStep[0],randomStartStep[1],rho,pressureReduced,(cycle+arg5),boxMatrix[0][0],boxMatrix[1][1],boxMatrix[0][1],deltaR,deltaV);
                 fprintf(fileConfigurationsList,"multimers[x_,y_,kI_]:={");
                 for (int i=0;i<activeN;i++) {
-                    fprintf(fileConfigurations,"m[%.17f,%.17f,%.17f,%.12f,%.12f,%d],",particles[i].r[0],particles[i].r[1],particles[i].phi,multimerS,multimerD,multimerN);
-                    fprintf(fileConfigurationsList,"m[%.12f+x,%.12f+y,%.12f,%.12f,%.12f,%d],",particles[i].r[0],particles[i].r[1],particles[i].phi,multimerS,multimerD,multimerN);
+                    if (particles[i].HCMtype) {
+                        fprintf(fileConfigurations,"m[%.17f,%.17f,%.17f,%.12f,%.12f,%d],",particles[i].r[0],particles[i].r[1],particles[i].phi,multimerS,multimerD,multimerN);
+                        fprintf(fileConfigurationsList,"m[%.12f+x,%.12f+y,%.12f,%.12f,%.12f,%d],",particles[i].r[0],particles[i].r[1],particles[i].phi,multimerS,multimerD,multimerN);
+                    } else {
+                        fprintf(fileConfigurations,"d[%.17f,%.17f,%.12f],",particles[i].r[0],particles[i].r[1],diskD);
+                        fprintf(fileConfigurationsList,"d[%.12f+x,%.12f+y,%.12f],",particles[i].r[0],particles[i].r[1],diskD);
+                    }
                 }
                 fprintf(fileConfigurations,"{Opacity[0.2],Red,Polygon[{{0,0},{%.12f,%.12f},{%.12f,%.12f},{%.12f,%.12f}}]},{Opacity[0.2],Green,Disk[{%.12f,%.12f},%.12f]}}",boxMatrix[0][0],boxMatrix[1][0],boxMatrix[0][0]+boxMatrix[0][1],boxMatrix[1][0]+boxMatrix[1][1],boxMatrix[0][1],boxMatrix[1][1],particles[indexScanned].r[0],particles[indexScanned].r[1],neighRadius);
                 fprintf(fileConfigurations,"\n==========================================\n\n\nboxMatrix[0][0]=%.12f, boxMatrix[1][1]=%.12f, boxMatrix[1][0]=boxMatrix[0][1]=%.12f",boxMatrix[0][0],boxMatrix[1][1],boxMatrix[1][0]);

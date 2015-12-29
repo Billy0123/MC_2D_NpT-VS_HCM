@@ -288,7 +288,7 @@ int createRandomGaps (particle *particles, double boxMatrix[2][2]) {
 int initPositions (particle *particles, double boxMatrix[2][2], double matrixOfParticlesSize[2], double rowShift, double initPeriodicImageMinDistance, double startAngleInRows[2]) {
     double mod=sqrt(N/matrixOfParticlesSize[0]/matrixOfParticlesSize[1]), interval[2], actualPosition[2]={0,0};
     for (int i=0;i<2;i++) interval[i]=boxMatrix[i][i]/matrixOfParticlesSize[i]/mod;
-    int rowCounter=0;
+    int rowCounter=0, columnCounter=0;
     for (int i=0;i<N;i++) {
         for (int j=0;j<2;j++) particles[i].r[j]=actualPosition[j];
         particles[i].normR[0]=(-boxMatrix[1][1]*particles[i].r[0]+boxMatrix[1][0]*particles[i].r[1])/normalizingDenominator;
@@ -297,13 +297,25 @@ int initPositions (particle *particles, double boxMatrix[2][2], double matrixOfP
         actualPosition[0]+=interval[0];
 
         //rzędy poziome
-        int minMainTypeRow=(matrixOfParticlesSize[0]-rowsOfMainParticles)/2, maxMainTypeRow=minMainTypeRow+rowsOfMainParticles;
+        /*int minMainTypeRow=(matrixOfParticlesSize[0]-rowsOfMainParticles)/2, maxMainTypeRow=minMainTypeRow+rowsOfMainParticles;
         if (rowCounter>minMainTypeRow && rowCounter<=maxMainTypeRow) particles[i].HCMtype=mainParticleType==1;
+        else particles[i].HCMtype=mainParticleType==0;*/
+
+        //rzędy pionowe
+        int minMainTypeRow=(matrixOfParticlesSize[1]-rowsOfMainParticles)/2, maxMainTypeRow=minMainTypeRow+rowsOfMainParticles;
+        if (columnCounter>=minMainTypeRow && columnCounter<maxMainTypeRow) particles[i].HCMtype=mainParticleType==1;
         else particles[i].HCMtype=mainParticleType==0;
 
+        //rzedy pionowe z pierwszym 'grubszym'
+        /*int minMainTypeRow=(matrixOfParticlesSize[1]-rowsOfMainParticles)/2, maxMainTypeRow=minMainTypeRow+rowsOfMainParticles;
+        if (columnCounter>=minMainTypeRow-(rowCounter%2) && columnCounter<maxMainTypeRow) particles[i].HCMtype=mainParticleType==1;
+        else particles[i].HCMtype=mainParticleType==0;*/
+
+        columnCounter++;
         if ((rowCounter%2)*rowShift-actualPosition[0]+boxMatrix[0][0]<initPeriodicImageMinDistance) {  //sprawdzenie czy kolejna wstawiona cząstka nie przekryje swojego obrazu periodycznego
             actualPosition[0]=(++rowCounter%2)*rowShift;
             actualPosition[1]+=interval[1];
+            columnCounter=0;
         }
     }
     if (gaps>0) return createRandomGaps(particles,boxMatrix);

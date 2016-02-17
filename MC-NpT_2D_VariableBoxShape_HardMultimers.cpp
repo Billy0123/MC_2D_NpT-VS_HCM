@@ -297,17 +297,17 @@ int initPositions (particle *particles, double boxMatrix[2][2], double matrixOfP
         actualPosition[0]+=interval[0];
 
         //rzędy poziome
-        /*int minMainTypeRow=(matrixOfParticlesSize[0]-rowsOfMainParticles)/2, maxMainTypeRow=minMainTypeRow+rowsOfMainParticles;
+        /*int minMainTypeRow=(matrixOfParticlesSize[0]*mod-rowsOfMainParticles)/2, maxMainTypeRow=minMainTypeRow+rowsOfMainParticles;
         if (rowCounter>minMainTypeRow && rowCounter<=maxMainTypeRow) particles[i].HCMtype=mainParticleType==1;
         else particles[i].HCMtype=mainParticleType==0;*/
 
         //rzędy pionowe
-        int minMainTypeRow=(matrixOfParticlesSize[1]-rowsOfMainParticles)/2, maxMainTypeRow=minMainTypeRow+rowsOfMainParticles;
+        int minMainTypeRow=(matrixOfParticlesSize[1]*mod-rowsOfMainParticles)/2, maxMainTypeRow=minMainTypeRow+rowsOfMainParticles;
         if (columnCounter>=minMainTypeRow && columnCounter<maxMainTypeRow) particles[i].HCMtype=mainParticleType==1;
         else particles[i].HCMtype=mainParticleType==0;
 
         //rzedy pionowe z pierwszym 'grubszym'
-        /*int minMainTypeRow=(matrixOfParticlesSize[1]-rowsOfMainParticles)/2, maxMainTypeRow=minMainTypeRow+rowsOfMainParticles;
+        /*int minMainTypeRow=(matrixOfParticlesSize[1]*mod-rowsOfMainParticles)/2, maxMainTypeRow=minMainTypeRow+rowsOfMainParticles;
         if (columnCounter>=minMainTypeRow-(rowCounter%2) && columnCounter<maxMainTypeRow) particles[i].HCMtype=mainParticleType==1;
         else particles[i].HCMtype=mainParticleType==0;*/
 
@@ -527,18 +527,24 @@ int attemptToDisplaceAParticle (particle *particles, int index, double boxMatrix
 
 int attemptToChangeVolume (particle *particles, double pressure, double boxMatrix[2][2], double *volume) {
     int result=1;
-    double lnNewBoxMatrix[2][2], newBoxMatrix[2][2];
+    double /*lnNewBoxMatrix[2][2], */newBoxMatrix[2][2];
     if (pressure>pressureRealOfNotFluid) {  //dozwolone zmiany ksztaltu pudla (faza stala)
-        for (int i=0;i<2;i++) for (int j=0;j<2;j++) lnNewBoxMatrix[i][j]=log(boxMatrix[i][j]);
+        /*for (int i=0;i<2;i++) for (int j=0;j<2;j++) lnNewBoxMatrix[i][j]=log(boxMatrix[i][j]);
         lnNewBoxMatrix[0][0]+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
         lnNewBoxMatrix[1][1]+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
         if (boxMatrix[1][0]==0) lnNewBoxMatrix[1][0]=-20.0+(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV; //log(0) -> -\infty; E^~0 za duze jak na start
         else lnNewBoxMatrix[1][0]+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
         lnNewBoxMatrix[0][1]=lnNewBoxMatrix[1][0];
-        for (int i=0;i<2;i++) for (int j=0;j<2;j++) newBoxMatrix[i][j]=exp(lnNewBoxMatrix[i][j]);
+        for (int i=0;i<2;i++) for (int j=0;j<2;j++) newBoxMatrix[i][j]=exp(lnNewBoxMatrix[i][j]);*/
+        newBoxMatrix[0][0]=boxMatrix[0][0]+(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
+        newBoxMatrix[1][1]=boxMatrix[1][1]+(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
+        newBoxMatrix[1][0]=boxMatrix[1][0]+(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
+        newBoxMatrix[0][1]=newBoxMatrix[1][0];
     } else {    //NIEdozwolone zmiany ksztaltu pudla (faza plynu)
-        lnNewBoxMatrix[0][0]=log(boxMatrix[0][0])+(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
-        newBoxMatrix[0][0]=exp(lnNewBoxMatrix[0][0]);
+        /*lnNewBoxMatrix[0][0]=log(boxMatrix[0][0])+(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
+        newBoxMatrix[0][0]=exp(lnNewBoxMatrix[0][0]);*/
+        newBoxMatrix[0][0]=boxMatrix[0][0]+(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
+
         newBoxMatrix[1][1]=boxMatrix[1][1]/boxMatrix[0][0]*newBoxMatrix[0][0];
         newBoxMatrix[0][1]=boxMatrix[0][1]; newBoxMatrix[1][0]=boxMatrix[1][0];
     }
@@ -646,7 +652,7 @@ int attemptToChangeVolume (particle *particles, double pressure, double boxMatri
     }
 
     if (result) {
-        double arg=-(pressure*(newVolume-(*volume))-(((double)N+1)*log(newVolume/(*volume))+log((newBoxMatrix[0][0]+newBoxMatrix[1][1])/(boxMatrix[0][0]+boxMatrix[1][1]))));
+        double arg=-(pressure*(newVolume-(*volume))-(((double)N)*log(newVolume/(*volume))+log((newBoxMatrix[0][0]+newBoxMatrix[1][1])/(boxMatrix[0][0]+boxMatrix[1][1]))));
         if (MTGenerate(randomStartStep)%1000000/1000000.0>exp(arg)) result=0;
         if (result) {
             *volume=newVolume;
@@ -1020,8 +1026,8 @@ int main(int argumentsNumber, char **arguments) {
     FILE *fileResults, *fileExcelResults, *fileConfigurations, *fileSavedConfigurations, *fileOrientations, *fileOrientatCorrelFun, *fileConfigurationsList, *fileAllResults, *fileAllOrientations, *fileOrientationsResults, *fileAllOrientationsResults;
     fileResults = fopen(resultsFileName,"rt"); if (fileResults==NULL) {
         fileResults = fopen(resultsFileName,"a");
-        if (saveConfigurations) fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tavNu\tdAvNu\tavNu12\tdAvNu12\tavNu21\tdAvNu21\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\tdPhiCyclesInterval\tavAbsDPhi\n");
-        else fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tavNu\tdAvNu\tavNu12\tdAvNu12\tavNu21\tdAvNu21\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\n");
+        if (saveConfigurations) fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tS1112\tdS1112\tS1222\tdS1222\tavNu\tdAvNu\tavNu12\tdAvNu12\tavNu21\tdAvNu21\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\tdPhiCyclesInterval\tavAbsDPhi\n");
+        else fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tS1112\tdS1112\tS1222\tdS1222\tavNu\tdAvNu\tavNu12\tdAvNu12\tavNu21\tdAvNu21\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\n");
         fclose(fileResults);
     }
     fileExcelResults = fopen(excelResultsFileName,"rt"); if (fileExcelResults==NULL) {
@@ -1323,14 +1329,14 @@ int main(int argumentsNumber, char **arguments) {
                             if (cycle%intervalResults==0)
                                 fprintf(fileAllResults,"%ld\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t\n",(cycle+arg5),volume,boxMatrix[0][0],boxMatrix[1][1],boxMatrix[1][0],rho,pacFrac);
 
-                            if (cycle%intervalOrientations==0) { //możliwość wylosowania HD (brak sprawdzania tego)
+                            if (cycle%intervalOrientations==0) { //brak rozróżniania HCM/HD
                                 /////skan po konkretnej cząstce (np. dla 224: 14*(16/2)-(14/2)=105, etc.) - w srodku by nie skakala na granicy pudla periodycznego; bezposrednie uzycie w Mathematice (format tablicy)
                                 if (cycle-cyclesOfEquilibration>=cyclesOfMeasurement)
                                     fprintf(fileOrientations,"{%.12f,%.12f,%.12f}}",particles[indexScanned].r[0],particles[indexScanned].r[1],particles[indexScanned].phi);
                                 else fprintf(fileOrientations,"{%.12f,%.12f,%.12f},",particles[indexScanned].r[0],particles[indexScanned].r[1],particles[indexScanned].phi);
-                                /////skan po wszystkich cząstkach
-                                for (int i=0;i<activeN-1;i++) if (particles[i].HCMtype) fprintf(fileAllOrientations,"%.12f,",particles[i].phi);
-                                fprintf(fileAllOrientations,"%.12f\n",particles[activeN-1].phi); //możliwość zapisania HD jeżeli jest ostatnią cząstką w tablicy
+                                /////skan po wszystkich cząstkach //brak rozróżniania HCM/HD
+                                for (int i=0;i<activeN-1;i++) fprintf(fileAllOrientations,"%.12f,",particles[i].phi);
+                                fprintf(fileAllOrientations,"%.12f\n",particles[activeN-1].phi);
                                 /////OCF
                                 if (OCFMode) { //nie przystosowany do HCM-HD
                                     char bufferText[1000000]="", bufferAngle[20];
@@ -1468,7 +1474,7 @@ int main(int argumentsNumber, char **arguments) {
 
             //obliczenie srednich iloczynow elementow tensora odkształceń
             printf("Calculation of average values of products of strain tensor's elements... ");
-            double e1111=0, e1122=0, e1212=0, e2222=0,
+            double e1111=0, e1122=0, e1212=0, e2222=0, e1112=0, e1222=0,
                    HxyHyx=avBoxMatrix[2]*avBoxMatrix[2],
                    HxxHyy=avBoxMatrix[0]*avBoxMatrix[1],
                    HxxHxy=avBoxMatrix[0]*avBoxMatrix[2],
@@ -1509,16 +1515,19 @@ int main(int argumentsNumber, char **arguments) {
                     e1122+=e11*e22;
                     e1212+=e12*e12;
                     e2222+=e22*e22;
+                    e1112+=e11*e12;
+                    e1222+=e12*e22;
                 }
             }
             fclose(fileAllResults);
             e1111/=(double)dataLicznik; e1122/=(double)dataLicznik;
             e1212/=(double)dataLicznik; e2222/=(double)dataLicznik;
+            e1112/=(double)dataLicznik; e1222/=(double)dataLicznik;
             printf("done\n");
 
             //obliczenie bledow iloczynow elementow tensora odksztalcen
             printf("Calculation of errors of average values of products of strain tensor's elements... ");
-            double dE1111=0, dE1122=0, dE1212=0, dE2222=0;
+            double dE1111=0, dE1122=0, dE1212=0, dE2222=0, dE1112=0, dE1222=0;
             fileAllResults=fopen(allResultsFileName,"rt");
             if (onlyMath[0]) for (int i=0;i<onlyMath[1];i++) fgets(linia,300,fileAllResults);
             while(fgets(linia,300,fileAllResults)!=NULL) {
@@ -1552,11 +1561,14 @@ int main(int argumentsNumber, char **arguments) {
                     epsilon=e1122-e11*e22; dE1122+=epsilon*epsilon;
                     epsilon=e1212-e12*e12; dE1212+=epsilon*epsilon;
                     epsilon=e2222-e22*e22; dE2222+=epsilon*epsilon;
+                    epsilon=e1112-e11*e12; dE1112+=epsilon*epsilon;
+                    epsilon=e1222-e12*e22; dE1222+=epsilon*epsilon;
                 }
             }
             fclose(fileAllResults);
             dE1111=getAvErrorFromSumEps(dE1111,denominator); dE1122=getAvErrorFromSumEps(dE1122,denominator);
             dE1212=getAvErrorFromSumEps(dE1212,denominator); dE2222=getAvErrorFromSumEps(dE2222,denominator);
+            dE1112=getAvErrorFromSumEps(dE1112,denominator); dE1222=getAvErrorFromSumEps(dE1222,denominator);
             printf("done\n");
 
             //obliczenie podatnosci, wspolczynnika Poissona i modulow sprezystosci
@@ -1565,6 +1577,8 @@ int main(int argumentsNumber, char **arguments) {
                    s1122=e1122*avVolume, dS1122=fabs(e1122*dAvVolume)+fabs(dE1122*avVolume),
                    s1212=e1212*avVolume, dS1212=fabs(e1212*dAvVolume)+fabs(dE1212*avVolume),
                    s2222=e2222*avVolume, dS2222=fabs(e2222*dAvVolume)+fabs(dE2222*avVolume),
+                   s1112=e1112*avVolume, dS1112=fabs(e1112*dAvVolume)+fabs(dE1112*avVolume),
+                   s1222=e1222*avVolume, dS1222=fabs(e1222*dAvVolume)+fabs(dE1222*avVolume),
 
                    nu12=-s1122/s1111, dNu12=fabs(dS1122/s1111)+fabs(dS1111*s1122/s1111/s1111),
                    nu21=-s1122/s2222, dNu21=fabs(dS1122/s2222)+fabs(dS2222*s1122/s2222/s2222),
@@ -1696,11 +1710,19 @@ int main(int argumentsNumber, char **arguments) {
             fileOrientationsResults = fopen(bufferOrientationsResults,"w");
             fileAllOrientationsResults = fopen(allOrientationsResultsFileName,"w");
 
+            //avPacFrac adjustation
+            //horizontalRows
+            //avPacFrac*=VcpPerParticle*56/(VcpPerParticle*rowsOfMainParticles*7+diskD*diskD*sqrt(3)/2*(56-rowsOfMainParticles*7));
+            //verticalColumns
+            //avPacFrac*=VcpPerParticle*56/(VcpPerParticle*rowsOfMainParticles*8+diskD*diskD*sqrt(3)/2*(56-rowsOfMainParticles*8));
+            //verticalThickColumns
+            //avPacFrac*=VcpPerParticle*56/(VcpPerParticle*(rowsOfMainParticles*8+4)+diskD*diskD*sqrt(3)/2*(56-rowsOfMainParticles*8-4));
+
             if (saveConfigurations) {
-                fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%ld\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,avNu,dAvNu,nu12,dNu12,nu21,dNu21,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,savedConfigurationsInt,avAbsDPhi);
+                fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%ld\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,avNu,dAvNu,nu12,dNu12,nu21,dNu21,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,savedConfigurationsInt,avAbsDPhi);
                 fprintf(fileExcelResults,"%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%ld\t%.12f\n",pressureReduced,avPacFrac,avNu,nu12,nu21,ODFMaxAll,averageCos6PhiAll,avB,avMy,avE,savedConfigurationsInt,avAbsDPhi);
             } else {
-                fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,avNu,dAvNu,nu12,dNu12,nu21,dNu21,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll);
+                fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,avNu,dAvNu,nu12,dNu12,nu21,dNu21,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll);
                 fprintf(fileExcelResults,"%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",pressureReduced,avPacFrac,avNu,nu12,nu21,ODFMaxAll,averageCos6PhiAll,avB,avMy,avE);
             }
 

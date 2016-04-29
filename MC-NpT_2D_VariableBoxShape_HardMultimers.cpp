@@ -309,15 +309,19 @@ int initPositions (particle *particles, double boxMatrix[2][2], double matrixOfP
                 counter=columnCounter;
             }
             int minMainTypeRow=(particlesNumberInNonMultiplicedSystem-rowsOfMainParticles)/2, maxMainTypeRow=minMainTypeRow+rowsOfMainParticles;
+            //rzędy i kolumny ZWYKŁE (komentarz na warunek)
             if (counter>=minMainTypeRow+(counter/particlesNumberInNonMultiplicedSystem)*particlesNumberInNonMultiplicedSystem
                 && counter<maxMainTypeRow+(counter/particlesNumberInNonMultiplicedSystem)*particlesNumberInNonMultiplicedSystem)
+            //tylko kolumny GRUBE (komentarz na warunek)
+            /*if (counter>=minMainTypeRow-(rowCounter%2)+(counter/particlesNumberInNonMultiplicedSystem)*particlesNumberInNonMultiplicedSystem
+                && counter<maxMainTypeRow+(counter/particlesNumberInNonMultiplicedSystem)*particlesNumberInNonMultiplicedSystem)*/
                 particles[i].HCMtype=mainParticleType==1;
             else particles[i].HCMtype=mainParticleType==0;
         } else if (setMethod==2) {//TYP#2(etap#1): układ izotropowy
             //pudlo prostokatne
-            //if (rowCounter%rowsOfMainParticles==0 && (-rowCounter/2+columnCounter)%rowsOfMainParticles==0) {
+            if (rowCounter%rowsOfMainParticles==0 && (-rowCounter/2+columnCounter)%rowsOfMainParticles==0) {
             //pudlo rombowe
-            if (rowCounter%rowsOfMainParticles==0 && columnCounter%rowsOfMainParticles==0) {
+            //if (rowCounter%rowsOfMainParticles==0 && columnCounter%rowsOfMainParticles==0) {
                 particles[i].HCMtype=mainParticleType==1;
                 baseIndexes[baseIndexesActual++]=i;
             } else particles[i].HCMtype=mainParticleType==0;
@@ -326,9 +330,9 @@ int initPositions (particle *particles, double boxMatrix[2][2], double matrixOfP
         columnCounter++;
         if (columnCounter>=matrixOfParticlesSize[0]*mod) {
             //pudlo prostokatne
-            //actualPosition[0]=(++rowCounter%2)*rowShift;
+            actualPosition[0]=(++rowCounter%2)*rowShift;
             //pudlo rombowe
-            actualPosition[0]=interval[0][1]*(++rowCounter);
+            //actualPosition[0]=interval[0][1]*(++rowCounter);
 
             actualPosition[1]=interval[1][1]*rowCounter;
             columnCounter=0;
@@ -1014,15 +1018,15 @@ int main(int argumentsNumber, char **arguments) {
         return 0;
     }
     //pudlo prostokatne dla inkluzji rzedow/kolumn
-    /*if (N%56!=0 && N%780!=0) {
-        printf("ERROR: Not supported N: %d.\n",N);
-        return 0;
-    }*/
-    //pudlo rombowe i prostokatne dla inkluzji izotropowych
-    if (floor(sqrt(N))!=sqrt(N)) {
+    if (N%56!=0 && N%780!=0) {
         printf("ERROR: Not supported N: %d.\n",N);
         return 0;
     }
+    //pudlo rombowe i prostokatne dla inkluzji izotropowych
+    /*if (floor(sqrt(N))!=sqrt(N)) {
+        printf("ERROR: Not supported N: %d.\n",N);
+        return 0;
+    }*/
 
     //stale wynikajace z zadanych parametrow multimerow
     L=multimerS/multimerD;
@@ -1072,18 +1076,18 @@ int main(int argumentsNumber, char **arguments) {
     fileResults = fopen(resultsFileName,"rt"); if (fileResults==NULL) {
         fileResults = fopen(resultsFileName,"a");
         //pudlo prostokatne i rombowe, H symetryczna (15stopni z obu kierunkow)
-        if (saveConfigurations) fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tS1112\tdS1112\tS1222\tdS1222\tavNu\tdAvNu\tavNu12\tdAvNu12\tavNu21\tdAvNu21\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\tdPhiCyclesInterval\tavAbsDPhi\n");
-        else fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tS1112\tdS1112\tS1222\tdS1222\tavNu\tdAvNu\tavNu12\tdAvNu12\tavNu21\tdAvNu21\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\n");
+        if (saveConfigurations) fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tS1112\tdS1112\tS1222\tdS1222\tavNu\tdAvNu\tavNu12\tdAvNu12\tavNu21\tdAvNu21\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\tPhiOfODFMax_All\tavPhi_All\tdPhiCyclesInterval\tavAbsDPhi\n");
+        else fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tS1112\tdS1112\tS1222\tdS1222\tavNu\tdAvNu\tavNu12\tdAvNu12\tavNu21\tdAvNu21\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\tPhiOfODFMax_All\tavPhi_All\n");
         //pudlo rombowe, H niesymetryczna (30stopni nachylone Y na X, a sam X poziomy)
-        /*if (saveConfigurations) fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tS1112\tdS1112\tS1222\tdS1222\tS2121\tdS2121\tS1221\tdS1221\tS1121\tdS1121\tS2122\tdS2122\tavNu\tdAvNu\tavNu12\tdAvNu12\tavNu21\tdAvNu21\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\tdPhiCyclesInterval\tavAbsDPhi\n");
-        else fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tS1112\tdS1112\tS1222\tdS1222\tS2121\tdS2121\tS1221\tdS1221\tS1121\tdS1121\tS2122\tdS2122\tavNu\tdAvNu\tavNu12\tdAvNu12\tavNu21\tdAvNu21\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\n");*/
+        /*if (saveConfigurations) fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tS1112\tdS1112\tS1222\tdS1222\tS2121\tdS2121\tS1221\tdS1221\tS1121\tdS1121\tS2122\tdS2122\tavNu\tdAvNu\tavNu12\tdAvNu12\tavNu21\tdAvNu21\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\tPhiOfODFMax_All\tavPhi_All\tdPhiCyclesInterval\tavAbsDPhi\n");
+        else fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tS1112\tdS1112\tS1222\tdS1222\tS2121\tdS2121\tS1221\tdS1221\tS1121\tdS1121\tS2122\tdS2122\tavNu\tdAvNu\tavNu12\tdAvNu12\tavNu21\tdAvNu21\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\tPhiOfODFMax_All\tavPhi_All\n");*/
 
         fclose(fileResults);
     }
     fileExcelResults = fopen(excelResultsFileName,"rt"); if (fileExcelResults==NULL) {
         fileExcelResults = fopen(excelResultsFileName,"a");
-        if (saveConfigurations) fprintf(fileExcelResults,"PressureReduced\tV/V_cp\tavNu\tavNu12\tavNu21\tODFMax_All\t<cos(6Phi)>_All\tavB\tavMy\tavE\tdPhiCyclesInterval\tavAbsDPhi\n");
-        else fprintf(fileExcelResults,"PressureReduced\tV/V_cp\tavNu\tavNu12\tavNu21\tODFMax_All\t<cos(6Phi)>_All\tavB\tavMy\tavE\n");
+        if (saveConfigurations) fprintf(fileExcelResults,"PressureReduced\tV/V_cp\tavNu\tavNu12\tavNu21\tODFMax_All\t<cos(6Phi)>_All\tPhiOfODFMax_All\tavPhi_All\tavB\tavMy\tavE\tdPhiCyclesInterval\tavAbsDPhi\n");
+        else fprintf(fileExcelResults,"PressureReduced\tV/V_cp\tavNu\tavNu12\tavNu21\tODFMax_All\t<cos(6Phi)>_All\tPhiOfODFMax_All\tavPhi_All\tavB\tavMy\tavE\n");
         fclose(fileExcelResults);
     }
 
@@ -1099,9 +1103,9 @@ int main(int argumentsNumber, char **arguments) {
                boxMatrix[2][2],unitCellAtCP[2],initRowShift,startAngleInRows[2],matrixOfParticlesSize[2];
         if (multimerN==6) {
             //pudlo prostokatne
-            //unitCellAtCP[0]=minDistance; unitCellAtCP[1]=sqrt(3)/2.0*minDistance;
+            unitCellAtCP[0]=minDistance; unitCellAtCP[1]=sqrt(3)/2.0*minDistance;
             //pudlo rombowe
-            unitCellAtCP[0]=minDistance; unitCellAtCP[1]=minDistance;
+            //unitCellAtCP[0]=minDistance; unitCellAtCP[1]=minDistance;
 
             initRowShift=unitCellAtCP[0]*sqrt(pacFrac)/2.0;
             startAngleInRows[0]=absoluteMinimum2; startAngleInRows[1]=absoluteMinimum2;
@@ -1112,21 +1116,22 @@ int main(int argumentsNumber, char **arguments) {
             startAngleInRows[0]=0; startAngleInRows[1]=C;
         }
         //pudlo prostokatne dla inkluzji rzedow/kolumn
-        /*if (N%56==0) {matrixOfParticlesSize[0]=7; matrixOfParticlesSize[1]=8;}
-        else if (N%780==0) {matrixOfParticlesSize[0]=26; matrixOfParticlesSize[1]=30;}*/
+        if (N%56==0) {matrixOfParticlesSize[0]=7; matrixOfParticlesSize[1]=8;}
+        else if (N%780==0) {matrixOfParticlesSize[0]=26; matrixOfParticlesSize[1]=30;}
         //pudlo rombowe i prostokatne dla inkluzji izotropowych
-        matrixOfParticlesSize[0]=sqrt(N); matrixOfParticlesSize[1]=sqrt(N);
+        //matrixOfParticlesSize[0]=sqrt(N); matrixOfParticlesSize[1]=sqrt(N);
 
         double NLinearMod = sqrt(N/matrixOfParticlesSize[0]/matrixOfParticlesSize[1]);
         if (startArg==arg) {
             //pudlo prostokatne
-            /*for (int i=0;i<2;i++) boxMatrix[i][i]=matrixOfParticlesSize[i]*unitCellAtCP[i]*sqrt(pacFrac)*NLinearMod;
-            boxMatrix[1][0]=0.0; boxMatrix[0][1]=0.0;*/
+            for (int i=0;i<2;i++) boxMatrix[i][i]=matrixOfParticlesSize[i]*unitCellAtCP[i]*sqrt(pacFrac)*NLinearMod;
+            boxMatrix[1][0]=0.0; boxMatrix[0][1]=0.0;
             //pudlo rombowe, H symetryczna (15stopni z obu kierunkow)
-            boxMatrix[0][0]=cos(pi/12.0)*matrixOfParticlesSize[0]*unitCellAtCP[0]*sqrt(pacFrac)*NLinearMod;
+            /*boxMatrix[
+                    0][0]=cos(pi/12.0)*matrixOfParticlesSize[0]*unitCellAtCP[0]*sqrt(pacFrac)*NLinearMod;
             boxMatrix[1][0]=sin(pi/12.0)*matrixOfParticlesSize[0]*unitCellAtCP[0]*sqrt(pacFrac)*NLinearMod;
             boxMatrix[1][1]=cos(pi/12.0)*matrixOfParticlesSize[1]*unitCellAtCP[1]*sqrt(pacFrac)*NLinearMod;
-            boxMatrix[0][1]=sin(pi/12.0)*matrixOfParticlesSize[1]*unitCellAtCP[1]*sqrt(pacFrac)*NLinearMod;
+            boxMatrix[0][1]=sin(pi/12.0)*matrixOfParticlesSize[1]*unitCellAtCP[1]*sqrt(pacFrac)*NLinearMod;*/
             //pudlo rombowe, H niesymetryczna (30stopni nachylone Y na X, a sam X poziomy)
             /*boxMatrix[0][0]=matrixOfParticlesSize[0]*unitCellAtCP[0]*sqrt(pacFrac)*NLinearMod;
             boxMatrix[1][0]=0.0;
@@ -1140,7 +1145,7 @@ int main(int argumentsNumber, char **arguments) {
             if (arg==startArg && !loadedConfiguration) {
                 printf("INIT POS.- N: %d, gaps: %d, growing: %d, StartPressRed: %.4f (StartDen: %.4f, startPacFrac: %.4f), mN: %d, mS: %.2f, mD: %.6f\n",N,gaps,growing,startArg,rho,pacFrac,multimerN,multimerS,multimerD);
                 if (!initPositions(particles,boxMatrix,matrixOfParticlesSize,initRowShift,startAngleInRows)) return 0;
-                adjustAngles(particles,boxMatrix);
+                //adjustAngles(particles,boxMatrix);
                 updateNeighbourList(particles,boxMatrix); //matrix(comment) 12/16
             } else if (loadedConfiguration) {
                 char configurations[400+110*activeN];
@@ -1750,7 +1755,7 @@ int main(int argumentsNumber, char **arguments) {
 
             //tworzenie pliku wynikowego do Origina - rozklad orientacyjny dla wszystkich czastek
             printf("Creation of ALL-particle orientation file for Origin... "); fflush(stdout);
-            componentCounter=0; double averageCos6PhiAll=0, ODFMaxAll=0;
+            componentCounter=0; double averageCos6PhiAll=0, ODFMaxAll=0, averagePhiAll=0;
             fileAllOrientations = fopen(allOrientationsFileName,"rt");
             double ODF_AllP[ODFLength]; for (int i=0;i<ODFLength;i++) ODF_AllP[i]=0; //Orientational Distribution Function (All Particles)
             while(fgets(linia,activeN*50,fileAllOrientations)!=NULL) {
@@ -1760,6 +1765,7 @@ int main(int argumentsNumber, char **arguments) {
                     char data[50]; int licznik=0;
                     while (linia[actIndex]!=',' && licznik<30) data[licznik++]=linia[actIndex++]; actIndex++;
                     double angle = normalizeAngle(strtod(data,NULL)+C);
+                    averagePhiAll+=angle;
                     averageCos6PhiAll+=cos(6.0*angle); componentCounter++;
                     int index = round((angle+C)/2.0/C*(double)(ODFLength-1.0));
                     ODF_AllP[index]++;
@@ -1767,10 +1773,15 @@ int main(int argumentsNumber, char **arguments) {
             }
             fclose(fileAllOrientations);
             suma=0; for (int i=0;i<ODFLength;i++) suma+=ODF_AllP[i]; for (int i=0;i<ODFLength;i++) ODF_AllP[i]/=suma*dPhi;
-            averageCos6PhiAll/=componentCounter; for (int i=0;i<ODFLength;i++) if (ODFMaxAll<ODF_AllP[i]) ODFMaxAll=ODF_AllP[i];
+            averagePhiAll/=componentCounter; averageCos6PhiAll/=componentCounter;
+            int maxODFAllIndex;
+            for (int i=0;i<ODFLength;i++) if (ODFMaxAll<ODF_AllP[i]) {
+                ODFMaxAll=ODF_AllP[i];
+                maxODFAllIndex=i;
+            }
             printf("done\n");
 
-            //analiza konfiguracji przejsciowych
+            //analiza konfiguracji przejsciowych (dPhi z konfiguracji na konfiguracje)
             double avAbsDPhi=0;
             if (saveConfigurations) {
                 printf("Transient configurations analysis... "); fflush(stdout);
@@ -1830,18 +1841,18 @@ int main(int argumentsNumber, char **arguments) {
 
             if (saveConfigurations) {
                 //pudlo prostokatne i rombowe, H symetryczna (15stopni z obu kierunkow)
-                fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%ld\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,avNu,dAvNu,nu1122_2222,dNu1122_2222,nu2211_1111,dNu2211_1111,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,savedConfigurationsInt,avAbsDPhi);
+                fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%ld\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,avNu,dAvNu,nu1122_2222,dNu1122_2222,nu2211_1111,dNu2211_1111,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll,savedConfigurationsInt,avAbsDPhi);
                 //pudlo rombowe, H niesymetryczna (30stopni nachylone Y na X, a sam X poziomy)
-                //fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%ld\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,s2121,dS2121,s1221,dS1221,s1121,dS1121,s2122,dS2122,avNu,dAvNu,nu1122_2222,dNu1122_2222,nu2211_1111,dNu2211_1111,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,savedConfigurationsInt,avAbsDPhi);
+                //fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%ld\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,s2121,dS2121,s1221,dS1221,s1121,dS1121,s2122,dS2122,avNu,dAvNu,nu1122_2222,dNu1122_2222,nu2211_1111,dNu2211_1111,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll,savedConfigurationsInt,avAbsDPhi);
 
-                fprintf(fileExcelResults,"%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%ld\t%.12f\n",pressureReduced,avPacFrac,avNu,nu1122_2222,nu2211_1111,ODFMaxAll,averageCos6PhiAll,avB,avMy,avE,savedConfigurationsInt,avAbsDPhi);
+                fprintf(fileExcelResults,"%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%ld\t%.12f\n",pressureReduced,avPacFrac,avNu,nu1122_2222,nu2211_1111,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll,avB,avMy,avE,savedConfigurationsInt,avAbsDPhi);
             } else {
                 //pudlo prostokatne i rombowe, H symetryczna (15stopni z obu kierunkow)
-                fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,avNu,dAvNu,nu1122_2222,dNu1122_2222,nu2211_1111,dNu2211_1111,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll);
+                fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,avNu,dAvNu,nu1122_2222,dNu1122_2222,nu2211_1111,dNu2211_1111,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll);
                 //pudlo rombowe, H niesymetryczna (30stopni nachylone Y na X, a sam X poziomy)
-                //fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,s2121,dS2121,s1221,dS1221,s1121,dS1121,s2122,dS2122,avNu,dAvNu,nu1122_2222,dNu1122_2222,nu2211_1111,dNu2211_1111,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll);
+                //fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,s2121,dS2121,s1221,dS1221,s1121,dS1121,s2122,dS2122,avNu,dAvNu,nu1122_2222,dNu1122_2222,nu2211_1111,dNu2211_1111,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll);
 
-                fprintf(fileExcelResults,"%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",pressureReduced,avPacFrac,avNu,nu1122_2222,nu2211_1111,ODFMaxAll,averageCos6PhiAll,avB,avMy,avE);
+                fprintf(fileExcelResults,"%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",pressureReduced,avPacFrac,avNu,nu1122_2222,nu2211_1111,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll,avB,avMy,avE);
             }
 
             if (!onlyMath[0]) {

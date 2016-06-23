@@ -39,7 +39,7 @@ cp $SLURM_SUBMIT_DIR/2D_N-$2_gaps-$3_G-$5_badanie-$7_mN-6_mD-${4}_p-${PRESSURE}/
    #UWAGA #3: Mozna do programu zadac jobID rowny np. 'repeats left' (lub 'none' gdy to zwykla rekurencja [a nie onePoint]). Wtedy w przypadku ewentualnej reanimacji powinno byc latwiej (bo: komenda 'sacct' [i podobne], czy nawet zapis w ERR [jezeli akurat powstanie - na co liczyc nie mozna] da co prawda informacje o jobID nieudanego jobu, jednak NIE DA informacji o jobID jobu 'poprzedniego' [z ktorego on korzystal i ktorego znajomosc potrzebna jest do reanimacji]) - nie bedzie trzeba go szukac po folderach indywidualnie dla kazdego reanimowanego jobu.
    time srun ./program 4 $8 $1 $2 $3 $4 $5 $6 1 $7 0 $9
 
-   cp -r 2D_N-$2_gaps-$3_G-$5_badanie-$7_mN-6_mD-${4}_p-${PRESSURE} $SLURM_SUBMIT_DIR
+   cp -fr 2D_N-$2_gaps-$3_G-$5_badanie-$7_mN-6_mD-${4}_p-${PRESSURE} $SLURM_SUBMIT_DIR
    #UWAGA #4: SLURM nie kasuje po sobie tempa automatycznie
    rm -r $TMPDIR/tmp_mb1991_$SLURM_JOB_ID
 

@@ -13,11 +13,10 @@ cd $SLURM_SUBMIT_DIR
 #pressure do 3 miejsc po przecinku (zeby pasowalo do nazw plikow, lista DOMYSLNIE na G=1)
 listLength=$(wc -l startArguments.txt | cut -f1 -d' ');
 if [ $4 = 1 ]; then
-   linia=$(cat startArguments.txt | head -n $(($9 + 1)) | tail -1);
+   PRESSURE=$(cut -f2 startArguments.txt | head -n $(($9 + 1)) | tail -1);
 else
-   linia=$(cat startArguments.txt | head -n $((${listLength} - $9)) | tail -1);
+   PRESSURE=$(cut -f2 startArguments.txt | head -n $((${listLength} - $9)) | tail -1);
 fi
-PRESSURE=${linia##*	};
 
 #UWAGA #1: SLURM nie tworzy indywidualnego folderu dla kazdego zadania (ponizej tworzony jest recznie)
 mkdir $TMPDIR/tmp_mb1991_$SLURM_JOB_ID
@@ -33,7 +32,7 @@ cp $SLURM_SUBMIT_DIR/startArguments.txt .
 #UWAGA #2: Mozna do programu zadac jobID rowny np. 'repeats left' (lub 'none' gdy to zwykla rekurencja [a nie onePoint]). Wtedy w przypadku ewentualnej reanimacji powinno byc latwiej (bo: komenda 'sacct' [i podobne], czy nawet zapis w ERR [jezeli akurat powstanie - na co liczyc nie mozna] da co prawda informacje o jobID nieudanego jobu, jednak NIE DA informacji o jobID jobu 'poprzedniego' [z ktorego on korzystal i ktorego znajomosc potrzebna jest do reanimacji]) - nie bedzie trzeba go szukac po folderach indywidualnie dla kazdego reanimowanego jobu.
 time srun ./program 2 $7 $1 $2 $3 $4 $8 $5 0 $6 $9
 
-cp -r 2D_N-$1_gaps-$2_G-$4_badanie-$5_mN-6_mD-${3}_p-${PRESSURE} $SLURM_SUBMIT_DIR
+cp -fr 2D_N-$1_gaps-$2_G-$4_badanie-$5_mN-6_mD-${3}_p-${PRESSURE} $SLURM_SUBMIT_DIR
 #UWAGA #3: SLURM nie kasuje po sobie tempa automatycznie
 rm -r $TMPDIR/tmp_mb1991_$SLURM_JOB_ID
 

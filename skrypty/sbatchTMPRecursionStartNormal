@@ -23,7 +23,7 @@ cp $SLURM_SUBMIT_DIR/lambdaSets.txt .
 #UWAGA #2: Mozna do programu zadac jobID rowny np. 'repeats left' (lub 'none' gdy to zwykla rekurencja [a nie onePoint]). Wtedy w przypadku ewentualnej reanimacji powinno byc latwiej (bo: komenda 'sacct' [i podobne], czy nawet zapis w ERR [jezeli akurat powstanie - na co liczyc nie mozna] da co prawda informacje o jobID nieudanego jobu, jednak NIE DA informacji o jobID jobu 'poprzedniego' [z ktorego on korzystal i ktorego znajomosc potrzebna jest do reanimacji]) - nie bedzie trzeba go szukac po folderach indywidualnie dla kazdego reanimowanego jobu.
 time srun ./program 2 $SLURM_JOBID $1 $2 $3 $4 $5 $6 $7 0 $9 ${10}
 
-cp -r 2D_N-$1_gaps-$2_G-$5_badanie-$7_mN-6_mS-$3_mD-$4 $SLURM_SUBMIT_DIR
+cp -fr 2D_N-$1_gaps-$2_G-$5_badanie-$7_mN-6_mS-$3_mD-$4 $SLURM_SUBMIT_DIR
 #UWAGA #3: SLURM nie kasuje po sobie tempa automatycznie
 rm -r $TMPDIR/tmp_mb1991_$SLURM_JOB_ID
 exit 0

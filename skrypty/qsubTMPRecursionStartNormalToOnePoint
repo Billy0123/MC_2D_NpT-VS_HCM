@@ -22,7 +22,7 @@ cp $PBS_O_WORKDIR/lambdaSets.txt .
 #UWAGA #2: Mozna do programu zadac jobID rowny np. 'repeats left' (lub 'none' gdy to zwykla rekurencja [a nie onePoint]). Wtedy w przypadku ewentualnej reanimacji powinno byc latwiej (bo: komenda 'sacct' [i podobne], czy nawet zapis w ERR [jezeli akurat powstanie - na co liczyc nie mozna] da co prawda informacje o jobID nieudanego jobu, jednak NIE DA informacji o jobID jobu 'poprzedniego' [z ktorego on korzystal i ktorego znajomosc potrzebna jest do reanimacji]) - nie bedzie trzeba go szukac po folderach indywidualnie dla kazdego reanimowanego jobu.
 time ./program 2 $PBS_JOBID $VAR1 $VAR2 $VAR3 $VAR4 $VAR5 $VAR9 $VAR6 0 $VAR7 $VAR10
 
-cp -r 2D_N-${VAR1}_gaps-${VAR2}_G-${VAR5}_badanie-${VAR6}_mN-6_mS-${VAR3}_mD-${VAR4} $PBS_O_WORKDIR
+cp -fr 2D_N-${VAR1}_gaps-${VAR2}_G-${VAR5}_badanie-${VAR6}_mN-6_mS-${VAR3}_mD-${VAR4} $PBS_O_WORKDIR
 #UWAGA #3: PBS kasuje po sobie tempa automatycznie
 
 ssh ce.reef.man.poznan.pl "cd $PBS_O_WORKDIR; qsub -N ${filterText}B${VAR6}P${VAR7}C${VAR10}R$(($VAR8 - 1)) -v VAR1=$PBS_JOBID,VAR2=$VAR1,VAR3=$VAR2,VAR4=$VAR3,VAR5=$VAR4,VAR6=$VAR5,VAR7=$VAR7,VAR8=$VAR6,VAR9=$(($VAR8 - 1)),VAR10=$VAR10,filterText=${filterText} qsubTMPRecursionOnePoint";

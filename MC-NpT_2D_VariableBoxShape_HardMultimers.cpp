@@ -1040,7 +1040,7 @@ int main(int argumentsNumber, char **arguments) {
     maxDistanceHCMHD=ROkreguOpisanego+(multimerD+diskD)/2.0;
     neighRadius=neighRadiusMod*maxDistance; neighRadius2=neighRadius*neighRadius; neighSafeDistance=neighRadius-maxDistance;
     if (multimerN==6) VcpPerParticle=minDistance*minDistance*sqrt(3)/2.0;  //dla heksamerow o dowolnym d/\sigma
-    else if (multimerN==5) VcpPerParticle=5.0936*multimerD*multimerD;  //dla pentamerów o d/\sigma=1
+    else if (multimerN==5) VcpPerParticle=5.0936*multimerS*multimerS;  //dla pentamerów o d/\sigma=1
     //nazwy folderow na podstawie parametrow programu
     sprintf(bufferG,"%d",growing); sprintf(bufferN,"%d",N); sprintf(bufferGaps,"%d",gaps);
     sprintf(bufferMN,"%d",multimerN); sprintf(bufferMS,"%.2f",multimerS); sprintf(bufferMD,"%.6f",multimerD);
@@ -1111,8 +1111,8 @@ int main(int argumentsNumber, char **arguments) {
             startAngleInRows[0]=absoluteMinimum2; startAngleInRows[1]=absoluteMinimum2;
         } else if (multimerN==5) {
             //pudlo prostokatne
-            unitCellAtCP[0]=2.40487*multimerD; unitCellAtCP[1]=2.11804*multimerD;
-            initRowShift=1.39176*multimerD;
+            unitCellAtCP[0]=2.40487*multimerS; unitCellAtCP[1]=2.11804*multimerS;
+            initRowShift=1.39176*multimerS;
             startAngleInRows[0]=0; startAngleInRows[1]=C;
         }
         //pudlo prostokatne dla inkluzji rzedow/kolumn

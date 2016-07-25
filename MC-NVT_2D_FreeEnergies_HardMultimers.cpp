@@ -13,15 +13,15 @@ int N,gaps,activeN,loadedConfiguration,loadType=0,loadedSetStartGenerator,loaded
     useSpecificDirectory,useFileToIterate,fileIterateIterationsNumber=0,actIteration=0,multiplyArgument,
     lambdaSetIndex,onlyMath[2]={0,0};
 long cyclesOfEquilibration,cyclesOfMeasurement,timeEq=0,timeMe=0,timeMath=0,intervalSampling,intervalOutput,intervalResults,intervalOrientations;
-long ovProbAttempted=0,ovProbOverlapped=0;  //overlapProbTest 1/4
+//long ovProbAttempted=0,ovProbOverlapped=0;  //overlapProbTest 1/4
 double maxDeltaR,desiredAcceptanceRatioR,
        minArg,maxArg,loadedArg,
        intervalMin[10],intervalMax[10],intervalDelta[10],
        startArg,deltaR,deltaPhi, //*sigma(=1)
-       multimerS,multimerD,randomStartStep[2],normalizingDenominator,
+       multimerS,multimerD,randomStartStep[2],detBoxMatrix,
        neighRadius,neighRadius2,neighSafeDistance,multiplyFactor,
        iterationTable[1000][6],pi=3.1415926535898,
-       lambda[2], displacementsSum[2], avPhi, boxInitParameters[4], massCenter[2][2], massCenterLattice[2][2];  //massCenter[0]:r, massCenter[1]:normR
+       lambda[2], displacementsSum[2], avPhi, boxInitParameters[3], massCenter[2][2], massCenterLattice[2][2];  //massCenter[0]:r, massCenter[1]:normR
 double L,C,ROkreguOpisanego,absoluteMinimum,absoluteMinimum2,minDistance,maxDistance,VcpPerParticle;
 char buffer[200]="",bufferN[20],bufferGaps[20],bufferG[5],bufferMN[20],bufferMS[20],bufferMD[20],bufferFolderIndex[5],
      resultsFileName[200]="ResultsSummary.txt",
@@ -277,27 +277,36 @@ int createRandomGaps (particle *particles, double boxMatrix[2][2]) {
     }
 }
 
-int initPositions (particle *particles, double boxMatrix[2][2], int matrixOfParticlesSize[2], double NLinearMod, double rowShift, double startAngleInRows[2], bool lattice) {
+int initPositions (particle *particles, double boxMatrix[2][2], double matrixOfParticlesSize[2], int n[2], double matrixCellXY[6][6][2], double matrixCellPhi[6][6], double pacFrac, bool lattice) {
     for (int i=0;i<2;i++) for (int j=0;j<2;j++) if (lattice) massCenterLattice[i][j]=0; else massCenter[i][j]=0;
-    int linearlyCorrectedMatrixOfParticlesSize[2] = {matrixOfParticlesSize[0]*NLinearMod,matrixOfParticlesSize[1]*NLinearMod};
+    double mod=sqrt(N/matrixOfParticlesSize[0]/matrixOfParticlesSize[1]), interval[2][2], actualPosition[2];
+    for (int i=0;i<2;i++) for (int j=0;j<2;j++) interval[i][j]=boxMatrix[i][j]/matrixOfParticlesSize[j]/mod*n[j];
+    int rowCounter=0, columnCounter=0;
     for (int i=0;i<N;i++) {
-        int rowCounter=i/linearlyCorrectedMatrixOfParticlesSize[0];
-        particles[i].normR[0]=i%linearlyCorrectedMatrixOfParticlesSize[0]/(double)linearlyCorrectedMatrixOfParticlesSize[0]+(rowCounter%2==1?rowShift/boxMatrix[0][0]:0);
-        particles[i].normR[1]=rowCounter/(double)linearlyCorrectedMatrixOfParticlesSize[1];
-        particles[i].r[0]=boxMatrix[0][0]*particles[i].normR[0]+boxMatrix[1][0]*particles[i].normR[1];
-        particles[i].r[1]=boxMatrix[0][1]*particles[i].normR[0]+boxMatrix[1][1]*particles[i].normR[1];
+        int cellNumber[2][2]={{columnCounter/n[0],rowCounter/n[1]},{columnCounter%n[0],rowCounter%n[1]}}; //cellNumber[0/1][X/Y]: 0-numer komorki, 1-kolumna/rzad W komorce
+        actualPosition[0]=cellNumber[0][0]*interval[0][0]+cellNumber[0][1]*interval[0][1]+matrixCellXY[cellNumber[1][0]][cellNumber[1][1]][0]*sqrt(pacFrac);
+        actualPosition[1]=cellNumber[0][1]*interval[1][1]+cellNumber[0][0]*interval[1][0]+matrixCellXY[cellNumber[1][0]][cellNumber[1][1]][1]*sqrt(pacFrac);
+
+        for (int j=0;j<2;j++) particles[i].r[j]=actualPosition[j];
+        particles[i].normR[0]=(boxMatrix[1][1]*particles[i].r[0]-boxMatrix[0][1]*particles[i].r[1])/detBoxMatrix;
+        particles[i].normR[1]=-(boxMatrix[1][0]*particles[i].r[0]-boxMatrix[0][0]*particles[i].r[1])/detBoxMatrix;
         if (lattice) {
             if (multimerN==6) particles[i].phi=avPhi;
             else if (multimerN==5) particles[i].phi=avPhi+(rowCounter%2)*C;  //avPhi powinno byc i tak rowne 0 (tak to jest dla HCP w publikacji)
             massCenterLattice[0][0]+=particles[i].r[0]; massCenterLattice[0][1]+=particles[i].r[1];
             massCenterLattice[1][0]+=particles[i].normR[0]; massCenterLattice[1][1]+=particles[i].normR[1];
         } else {
-            particles[i].phi=startAngleInRows[rowCounter%2];
+            particles[i].phi=matrixCellPhi[cellNumber[1][0]][cellNumber[1][1]];
             massCenter[0][0]+=particles[i].r[0]; massCenter[0][1]+=particles[i].r[1];
             massCenter[1][0]+=particles[i].normR[0]; massCenter[1][1]+=particles[i].normR[1];
         }
-    }
 
+        columnCounter++;
+        if (columnCounter>=matrixOfParticlesSize[0]*mod) {
+            rowCounter++;
+            columnCounter=0;
+        }
+    }
     for (int i=0;i<2;i++) for (int j=0;j<2;j++) if (lattice) massCenterLattice[i][j]/=(double)N; else massCenter[i][j]/=(double)N;
     if (!lattice && gaps>0) return createRandomGaps(particles,boxMatrix);
     else return 1;
@@ -363,7 +372,7 @@ void checkSinglePeriodicBoundaryConditions (particle *particle, double boxMatrix
             }
         } while (change==1);
     }
-    particle->phi=normalizeAngle(particle->phi);
+    particle->phi=normalizeAngle(particle->phi);     //rotationsAnalysis(comment) 1/1
 }
 
 void checkPeriodicBoundaryConditions (particle *particles, double boxMatrix[2][2]) {
@@ -393,7 +402,7 @@ void computeDisplacementsSum (particle *particles, particle *latticeNodes, doubl
 
 int getOverlapsAndDisplacements (particle *particles, particle *latticeNodes, int index, double boxMatrix[2][2]) {
     int overlap=0;
-    /*for (int i=0;i<particles[index].neighCounter;i++) { //overlapProbTest(comment) 2a/4
+    for (int i=0;i<particles[index].neighCounter;i++) { //overlapProbTest(comment) 2a/4
         double normalizedRX=particles[particles[index].neighbours[i]].normR[0]-particles[index].normR[0],
                normalizedRY=particles[particles[index].neighbours[i]].normR[1]-particles[index].normR[1],
                rx=particles[particles[index].neighbours[i]].r[0]-particles[index].r[0],
@@ -418,7 +427,7 @@ int getOverlapsAndDisplacements (particle *particles, particle *latticeNodes, in
             if (overlap==1) i=particles[index].neighCounter;
         }
     } //overlapProbTest(comment) 2b/4
-    if (overlap==0) */computeDisplacementsSum(particles,latticeNodes,boxMatrix);
+    if (overlap==0) computeDisplacementsSum(particles,latticeNodes,boxMatrix);
     return overlap;
 }
 
@@ -430,8 +439,8 @@ int attemptToDisplaceAParticle (particle *particles, particle *latticeNodes, int
            oldMassCenter[2][2]={{massCenter[0][0],massCenter[0][1]},{massCenter[1][0],massCenter[1][1]}},
            oldDisplacementsSum[2]={displacementsSum[0],displacementsSum[1]};
     for (int i=0;i<2;i++) particles[index].r[i]+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaR;
-    particles[index].normR[0]=(-boxMatrix[1][1]*particles[index].r[0]+boxMatrix[1][0]*particles[index].r[1])/normalizingDenominator;
-    particles[index].normR[1]=(boxMatrix[1][0]*particles[index].r[0]-boxMatrix[0][0]*particles[index].r[1])/normalizingDenominator;
+    particles[index].normR[0]=(boxMatrix[1][1]*particles[index].r[0]-boxMatrix[0][1]*particles[index].r[1])/detBoxMatrix;
+    particles[index].normR[1]=-(boxMatrix[1][0]*particles[index].r[0]-boxMatrix[0][0]*particles[index].r[1])/detBoxMatrix;
     particles[index].phi+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaPhi;
     for (int i=0;i<2;i++) {
         massCenter[0][i]+=(particles[index].r[i]-oldR[i])/(double)activeN;
@@ -463,8 +472,8 @@ int createIterationTable () {
         iterationTable[fileIterateIterationsNumber][1]=strtod(pEnd,&pEnd);
         iterationTable[fileIterateIterationsNumber][2]=strtod(pEnd,&pEnd);
         iterationTable[fileIterateIterationsNumber][3]=strtod(pEnd,&pEnd);
-        iterationTable[fileIterateIterationsNumber][4]=strtod(pEnd,&pEnd);
-        iterationTable[fileIterateIterationsNumber++][5]=strtod(pEnd,NULL);
+        iterationTable[fileIterateIterationsNumber++][4]=strtod(pEnd,NULL);
+        //ostatnia pozycja ze 'starych' startArguments (initRowShift), jest ustalana na podstawie stalych sieci (*sqrt(pacFrac))
     }
     fclose(fileStartArguments);
     return 0;
@@ -510,7 +519,7 @@ double getNextArgument (double prevArg, bool countIterations) {
         if (++actIteration<fileIterateIterationsNumber) {
             prevArg=growing?iterationTable[actIteration][0]:iterationTable[fileIterateIterationsNumber-1-actIteration][0];
             avPhi=growing?iterationTable[actIteration][1]:iterationTable[fileIterateIterationsNumber-1-actIteration][1];
-            for (int i=0;i<4;i++) boxInitParameters[i]=growing?iterationTable[actIteration][i+2]:iterationTable[fileIterateIterationsNumber-1-actIteration][i+2];
+            for (int i=0;i<3;i++) boxInitParameters[i]=growing?iterationTable[actIteration][i+2]:iterationTable[fileIterateIterationsNumber-1-actIteration][i+2];
             if (growing) minArg=iterationTable[actIteration][0];
             else maxArg=iterationTable[fileIterateIterationsNumber-1-actIteration][0];
         } else growing=-1;
@@ -725,7 +734,7 @@ int main(int argumentsNumber, char **arguments) {
         minArg=iterationTable[0][0];
         maxArg=iterationTable[fileIterateIterationsNumber-1][0];
         avPhi=growing?iterationTable[0][1]:iterationTable[fileIterateIterationsNumber-1][1];
-        for (int i=0;i<4;i++) boxInitParameters[i]=growing?iterationTable[0][i+2]:iterationTable[fileIterateIterationsNumber-1][i+2];
+        for (int i=0;i<3;i++) boxInitParameters[i]=growing?iterationTable[0][i+2]:iterationTable[fileIterateIterationsNumber-1][i+2];
     }
     startArg=growing?minArg:maxArg;
     deltaR=maxDeltaR*multimerS;
@@ -739,7 +748,7 @@ int main(int argumentsNumber, char **arguments) {
         printf("ERROR: Not supported multimerN: %d.\n",multimerN);
         return 0;
     }
-    if (N%56!=0 && N%780!=0) {
+    if (N%56!=0 && N%780!=0 && floor(sqrt(N))!=sqrt(N)) {
         printf("ERROR: Not supported N: %d.\n",N);
         return 0;
     }
@@ -802,33 +811,43 @@ int main(int argumentsNumber, char **arguments) {
 
 /////////////////////////////////////////////// WARUNKI POCZATKOWE
 
-    double arg=startArg, oldVolume, oldBoxMatrix[2][2];
+    double arg=startArg, oldBoxMatrix[2][2];
     while (growing>=0) { //OBECNA WERSJA NIE NADAJE SIĘ DO SEKWENCJI (NIE MA PROCEDUR ODPOWIADAJĄCYCH ZA SPRĘŻANIE/ROZPRĘŻANIE UKŁADU)
-        double volume=(startArg==arg)?(growing?N/(1.0/VcpPerParticle/minArg):N/(1.0/VcpPerParticle/maxArg)):oldVolume, rho=N/volume, pacFrac=1.0/VcpPerParticle/rho, //(pacFrac==arg)
-               boxMatrix[2][2],initRowShift,startAngleInRows[2];
-        int matrixOfParticlesSize[2];
-         if (multimerN==6) {
-             startAngleInRows[0]=absoluteMinimum2; startAngleInRows[1]=absoluteMinimum2;
-         } else if (multimerN==5) {
-             startAngleInRows[0]=0; startAngleInRows[1]=C;
-         }
-         if (N%56==0) {matrixOfParticlesSize[0]=7; matrixOfParticlesSize[1]=8;}
-         else if (N%780==0) {matrixOfParticlesSize[0]=26; matrixOfParticlesSize[1]=30;}
-         double NLinearMod = sqrt(N/(double)matrixOfParticlesSize[0]/(double)matrixOfParticlesSize[1]);
-         if (startArg==arg) {
-             for (int i=0;i<2;i++) boxMatrix[i][i]=boxInitParameters[i];
-             boxMatrix[1][0]=boxInitParameters[2]; boxMatrix[0][1]=boxInitParameters[2];
-             initRowShift=boxInitParameters[3];
-         } else for (int i=0;i<2;i++) for (int j=0;j<2;j++) boxMatrix[i][j]=oldBoxMatrix[i][j];
-         normalizingDenominator=pow(boxMatrix[1][0],2)-boxMatrix[0][0]*boxMatrix[1][1];
-
-         volume=fabs(-pow(boxMatrix[1][0],2)+boxMatrix[0][0]*boxMatrix[1][1]);
-         rho=N/volume; pacFrac=1.0/VcpPerParticle/rho;
+        double pacFrac=arg,
+               boxMatrix[2][2],matrixOfParticlesSize[2],unitCellAtCP[2],
+               matrixCellXY[6][6][2],matrixCellPhi[6][6];
+        int n[2]; //n[X/Y], matrixCell[n[XMax]][n[YMax]][x/y], zatem: n[X/Y](max)=6
+        switch (multimerN) {
+            case 6: {//dla heksamerow o dowolnym d/\sigma
+                unitCellAtCP[0]=minDistance; unitCellAtCP[1]=sqrt(3)*minDistance;
+                n[0]=1; n[1]=2;
+                matrixCellXY[0][0][0]=0; matrixCellXY[0][0][1]=0; matrixCellPhi[0][0]=absoluteMinimum2;
+                matrixCellXY[0][1][0]=unitCellAtCP[0]/2.0; matrixCellXY[0][1][1]=unitCellAtCP[1]/2.0; matrixCellPhi[0][1]=absoluteMinimum2;
+            } break;
+            case 5: {//dla pentamerow o d/\sigma=1
+                unitCellAtCP[0]=2.4048671732*multimerS; unitCellAtCP[1]=4.2360679772*multimerS;
+                n[0]=1; n[1]=2;
+                matrixCellXY[0][0][0]=0; matrixCellXY[0][0][1]=0; matrixCellPhi[0][0]=C;
+                matrixCellXY[0][1][0]=1.0131106571*multimerS; matrixCellXY[0][1][1]=unitCellAtCP[1]/2.0; matrixCellPhi[0][1]=0;
+            } break;
+        } VcpPerParticle=unitCellAtCP[0]*unitCellAtCP[1]/(double)n[0]/(double)n[1];
+        if (N%56==0) {matrixOfParticlesSize[0]=7; matrixOfParticlesSize[1]=8;}
+        else if (N%780==0) {matrixOfParticlesSize[0]=26; matrixOfParticlesSize[1]=30;}
+        else if (floor(sqrt(N))==sqrt(N)) {matrixOfParticlesSize[0]=matrixOfParticlesSize[1]=sqrt(N);}
+        double NLinearMod = sqrt(N/matrixOfParticlesSize[0]/matrixOfParticlesSize[1]);
+        if (startArg==arg) {
+            /*for (int i=0;i<2;i++) boxMatrix[i][i]=matrixOfParticlesSize[i]*unitCellAtCP[i]/(double)n[i]*NLinearMod*sqrt(pacFrac);
+            boxMatrix[1][0]=0.0; boxMatrix[0][1]=0.0;*/
+            for (int i=0;i<2;i++) boxMatrix[i][i]=boxInitParameters[i];
+            boxMatrix[1][0]=boxMatrix[0][1]=boxInitParameters[2];
+        } else for (int i=0;i<2;i++) for (int j=0;j<2;j++) boxMatrix[i][j]=oldBoxMatrix[i][j];
+        detBoxMatrix=boxMatrix[0][0]*boxMatrix[1][1]-boxMatrix[1][0]*boxMatrix[0][1];
+        double volume=fabs(detBoxMatrix), rho=N/volume;
 
         if (!onlyMath[0]) {
             if (arg==startArg && !loadedConfiguration) {
-                printf("INIT POS.- N: %d, gaps: %d, growing: %d, StartDen: %.4f, startPacFrac: %.4f, lambda[0]: %.4f, lambda[1]: %.4f, avPhi: %.4f, mN: %d, mS: %.2f, mD: %.6f\n",N,gaps,growing,rho,pacFrac,lambda[0],lambda[1],avPhi,multimerN,multimerS,multimerD);
-                if (!initPositions(particles,boxMatrix,matrixOfParticlesSize,NLinearMod,initRowShift,startAngleInRows,false)) return 0;
+                printf("INIT POS.- N: %d, gaps: %d, growing: %d, StartDen: %.4f, startPacFrac: %.4f, lambda[0]: %.4f, lambda[1]: %.4f, avPhi: %.4f, mN: %d, mS: %.2f, mD: %.6f\n",N,gaps,growing,rho,pacFrac,lambda[0],lambda[1],avPhi,multimerN,multimerS,multimerD);                
+                if (!initPositions(particles,boxMatrix,matrixOfParticlesSize,n,matrixCellXY,matrixCellPhi,pacFrac,false)) return 0;
                 adjustAngles(particles,boxMatrix);
                 updateNeighbourList(particles,boxMatrix);
             } else if (loadedConfiguration) {
@@ -865,9 +884,9 @@ int main(int argumentsNumber, char **arguments) {
                 boxMatrix[0][0]=arg6; boxMatrix[1][1]=arg7; boxMatrix[1][0]=arg8; boxMatrix[0][1]=arg8;
                 deltaR=arg9; deltaPhi=deltaR*2.0*sin(C);
                 arg=arg4; pacFrac=arg;
-                rho=arg3; volume=N/rho;
+                detBoxMatrix=boxMatrix[0][0]*boxMatrix[1][1]-boxMatrix[1][0]*boxMatrix[0][1];
+                volume=fabs(detBoxMatrix); rho=N/volume;
 
-                normalizingDenominator=pow(boxMatrix[1][0],2)-boxMatrix[0][0]*boxMatrix[1][1];
                 actIndex=0;
                 while (configurations[actIndex]!='{') actIndex++;
                 actIndex+=3;
@@ -881,12 +900,12 @@ int main(int argumentsNumber, char **arguments) {
                             particles[i].r[j]=strtod(coordinate,NULL);
                         } else {
                             //actIndex+=22;         //dla mniejszej dokladnosci (%.5f) - dla kompatybilnosci ze starymi plikami
-                            actIndex+=36;
+                            actIndex+=35+strlen(bufferMN);
                             particles[i].phi=strtod(coordinate,NULL);
                         }
                     }
-                    particles[i].normR[0]=(-boxMatrix[1][1]*particles[i].r[0]+boxMatrix[1][0]*particles[i].r[1])/normalizingDenominator;
-                    particles[i].normR[1]=(boxMatrix[1][0]*particles[i].r[0]-boxMatrix[0][0]*particles[i].r[1])/normalizingDenominator;
+                    particles[i].normR[0]=(boxMatrix[1][1]*particles[i].r[0]-boxMatrix[0][1]*particles[i].r[1])/detBoxMatrix;
+                    particles[i].normR[1]=-(boxMatrix[1][0]*particles[i].r[0]-boxMatrix[0][0]*particles[i].r[1])/detBoxMatrix;
                 }
                 printf("LOADING POS.- N: %d, gaps: %d, growing: %d, startDen: %.4f, startPacFrac: %.4f, lambda[0]: %.4f, lambda[1]: %.4f, avPhi: %.4f, RandStart: %.1f, RandStep: %.1f, Cycles: %ld, DeltaR: %.4f, massCenter: [%.4f,%.4f,%.4f,%.4f]\n",N,gaps,growing,arg3,pacFrac,lambda[0],lambda[1],avPhi,arg1,arg2,arg5,arg9,massCenter[0][0],massCenter[0][1],massCenter[1][0],massCenter[1][1]);
                 //for (int i=0;i<2;i++) for (int j=0;j<2;j++) printf("boxMatrix[%d][%d]=%.12f\n",i,j,boxMatrix[i][j]);
@@ -977,7 +996,7 @@ int main(int argumentsNumber, char **arguments) {
             fileAllOrientations = fopen(allOrientationsFileName,"a");
             if (onlyMath[0]) nStep=0;
             else {
-                initPositions(latticeNodes,boxMatrix,matrixOfParticlesSize,NLinearMod,initRowShift,startAngleInRows,true);
+                initPositions(latticeNodes,boxMatrix,matrixOfParticlesSize,n,matrixCellXY,matrixCellPhi,pacFrac,true);
                 computeDisplacementsSum(particles,latticeNodes,boxMatrix);
             }
 
@@ -993,7 +1012,7 @@ int main(int argumentsNumber, char **arguments) {
                     cycle++;
 
                     //overlapProbTest 3a/4
-                    ovProbAttempted++;
+                    /*ovProbAttempted++;
                     for (int i=0;i<activeN-1;i++) for (int j=i+1;j<activeN;j++) {
                         double normalizedRX=particles[i].normR[0]-particles[j].normR[0],
                                normalizedRY=particles[i].normR[1]-particles[j].normR[1],
@@ -1021,7 +1040,7 @@ int main(int argumentsNumber, char **arguments) {
                                 j=activeN; i=activeN; break;
                             }
                         }
-                    }//overlapProbTest 3b/4
+                    }*///overlapProbTest 3b/4
 
                     if (cycle%intervalSampling==0) {
                         double acceptanceRatioR = displacedNumberR/(double)attemptedNumberR;
@@ -1287,8 +1306,8 @@ int main(int argumentsNumber, char **arguments) {
             fileOrientationsResults = fopen(bufferOrientationsResults,"w");
             fileAllOrientationsResults = fopen(allOrientationsResultsFileName,"w");
 
-            fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",(cycle+arg5),volume,boxMatrix[0][0],boxMatrix[1][1],boxMatrix[0][1],rho,pacFrac,lambda[0],avDisplacements[0],dAvDisplacements[0],lambda[1],avDisplacements[1],dAvDisplacements[1],ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll);
-            fprintf(fileExcelResults,"%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",volume,rho,pacFrac,lambda[0],avDisplacements[0],lambda[1],avDisplacements[1],ODFMaxAll,averageCos6PhiAll);
+            fprintf(fileResults,"%ld\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\n",(cycle+arg5),volume,boxMatrix[0][0],boxMatrix[1][1],boxMatrix[0][1],rho,pacFrac,lambda[0],avDisplacements[0],dAvDisplacements[0],lambda[1],avDisplacements[1],dAvDisplacements[1],ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll);
+            fprintf(fileExcelResults,"%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\n",volume,rho,pacFrac,lambda[0],avDisplacements[0],lambda[1],avDisplacements[1],ODFMaxAll,averageCos6PhiAll);
 
             if (!onlyMath[0]) {
                 fprintf(fileConfigurations,"Rho: %.12f\tV/V_cp: %.12f\tPressureRed: pressureReduced\tRandStart: %.1f\tRandSteps: %.1f\tCycles: %ld\tEquilTime: %ldsec\tMeasuTime: %ldsec\n\n",rho,pacFrac,
@@ -1325,12 +1344,11 @@ int main(int argumentsNumber, char **arguments) {
 /////////////////////////////////////////////// PRZYGOTOWANIE DO KOLEJNEJ ITERACJI
 
         arg=getNextArgument(arg,true);
-        oldVolume=volume;
         for (int i=0;i<2;i++) for (int j=0;j<2;j++) oldBoxMatrix[i][j]=boxMatrix[i][j];
         arg5=0;
         loadedConfiguration=0;
     }
     printf("\nTime for equilibrations: %ldsec ,  time for measurments: %ldsec, time for math: %ldsec.\n",timeEq,timeMe,timeMath);
     printf("\nSimulation has been completed.\n");
-    printf("\n\nprobability of NO-OVERLAPS = %.15f\n",1.0-ovProbOverlapped/(double)ovProbAttempted);   //overlapProbTest 4/4
+    //printf("\n\nprobability of NO-OVERLAPS = %.15f\n",1.0-ovProbOverlapped/(double)ovProbAttempted);   //overlapProbTest 4/4
 }

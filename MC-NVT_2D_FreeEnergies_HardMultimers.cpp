@@ -842,7 +842,7 @@ int main(int argumentsNumber, char **arguments) {
             boxMatrix[1][0]=boxMatrix[0][1]=boxInitParameters[2];
         } else for (int i=0;i<2;i++) for (int j=0;j<2;j++) boxMatrix[i][j]=oldBoxMatrix[i][j];
         detBoxMatrix=boxMatrix[0][0]*boxMatrix[1][1]-boxMatrix[1][0]*boxMatrix[0][1];
-        double volume=fabs(detBoxMatrix), rho=N/volume;
+        double volume=fabs(detBoxMatrix), rho=N/volume; pacFrac=1.0/VcpPerParticle/rho;
 
         if (!onlyMath[0]) {
             if (arg==startArg && !loadedConfiguration) {
@@ -885,7 +885,7 @@ int main(int argumentsNumber, char **arguments) {
                 deltaR=arg9; deltaPhi=deltaR*2.0*sin(C);
                 arg=arg4; pacFrac=arg;
                 detBoxMatrix=boxMatrix[0][0]*boxMatrix[1][1]-boxMatrix[1][0]*boxMatrix[0][1];
-                volume=fabs(detBoxMatrix); rho=N/volume;
+                volume=fabs(detBoxMatrix); rho=N/volume; pacFrac=1.0/VcpPerParticle/rho;
 
                 actIndex=0;
                 while (configurations[actIndex]!='{') actIndex++;

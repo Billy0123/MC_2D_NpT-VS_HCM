@@ -31,12 +31,22 @@ char buffer[200]="",bufferN[20],bufferGaps[20],bufferG[5],bufferMN[20],bufferMS[
      configurationsListFileName[200]="ConfigurationsList.txt",
      loadConfigurationsFileName[200]="Configurations",
      loadedJOBID[50]="j-none";
-/*int latticeTable[9][4] //N=36_3x3HEX
+
+const int latticeNodes=4;
+/*int latticeTable[9][latticeNodes] //boxRec-Hex36[3x3]
 = {{0,3,19,22},{1,4,20,23},{2,5,21,18},{6,9,26,29},{7,10,27,24},{8,11,28,25},{13,16,32,35},{14,17,33,30},{15,12,34,31}};*/
-/*int latticeTable[4][4] //N=16_2x2HEX
+/*int latticeTable[6][latticeNodes] //boxRec-Hex36[3x2]
+= {{0,3,13,16,26,29},{1,4,14,17,27,24},{2,5,15,12,28,25},{6,9,19,22,32,35},{7,10,20,23,33,30},{8,11,21,18,34,31}};*/
+/*int latticeTable[6][latticeNodes] //boxRec-Rec36[3x2]
+= {{0,3,12,15,24,27},{1,4,13,16,25,28},{2,5,14,17,26,29},{6,9,18,21,30,33},{7,10,19,22,31,34},{8,11,20,23,32,35}};*/
+/*int latticeTable[4][latticeNodes] //boxRec-Hex16[2x2]
 = {{0,2,9,11},{1,3,10,8},{4,6,13,15},{5,7,14,12}};*/
-int latticeTable[4][4] //N=16_2x2RECT
-= {{0,2,8,10},{1,3,9,11},{4,6,12,14},{5,7,13,15}};
+/*int latticeTable[4][latticeNodes] //boxRec-Rec16[2x2]
+= {{0,2,8,10},{1,3,9,11},{4,6,12,14},{5,7,13,15}};*/
+int latticeTable[9][latticeNodes] //boxHex-OtherA36[3x3]
+= {{0,15,18,33},{1,16,19,34},{2,17,20,35},{6,21,24,3},{7,22,25,4},{8,23,26,5},{12,27,30,9},{13,28,31,10},{14,29,32,11}};
+/*int latticeTable[6][latticeNodes] //boxHex-OtherA36[3x2]
+= {{0,10,14,18,28,32},{1,11,15,19,29,33},{2,6,16,20,24,34},{3,7,17,21,25,35},{4,8,12,22,26,30},{5,9,13,23,27,31}};*/
 /////////////////  PARTICLE functions{
 typedef struct particle {
     double r[2], normR[2];  //x,y
@@ -398,15 +408,15 @@ int getEnergy (particle *particles, int index, double boxMatrix[2][2]) {
 int attemptToDisplaceAParticle (particle *particles, int index, double boxMatrix[2][2]) {
     int result=1;
 
-    double oldR[4][2],oldNormR[4][2],oldPhi;
-    for (int i=0;i<4;i++) for (int j=0;j<2;j++) {
+    double oldR[latticeNodes][2],oldNormR[latticeNodes][2],oldPhi;
+    for (int i=0;i<latticeNodes;i++) for (int j=0;j<2;j++) {
         oldR[i][j]=particles[latticeTable[index][i]].r[j];
         oldNormR[i][j]=particles[latticeTable[index][i]].normR[j];
     } oldPhi=particles[latticeTable[index][0]].phi;
 
     double newPhi=particles[latticeTable[index][0]].phi+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaPhi;
 
-    for (int i=0;i<4;i++) {
+    for (int i=0;i<latticeNodes;i++) {
         for (int j=0;j<2;j++) particles[latticeTable[index][i]].r[j]+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaR;
         particles[latticeTable[index][i]].normR[0]=(boxMatrix[1][1]*particles[latticeTable[index][i]].r[0]-boxMatrix[0][1]*particles[latticeTable[index][i]].r[1])/detBoxMatrix;
         particles[latticeTable[index][i]].normR[1]=-(boxMatrix[1][0]*particles[latticeTable[index][i]].r[0]-boxMatrix[0][0]*particles[latticeTable[index][i]].r[1])/detBoxMatrix;
@@ -420,9 +430,9 @@ int attemptToDisplaceAParticle (particle *particles, int index, double boxMatrix
                 particles[latticeTable[index][j]].phi=oldPhi;
             }
             result=0;
-            i=4; break;
+            i=latticeNodes; break;
         } else {
-            checkSinglePeriodicBoundaryConditions(&particles[index],boxMatrix);
+            checkSinglePeriodicBoundaryConditions(&particles[latticeTable[index][i]],boxMatrix);
         }
     }
 
@@ -884,7 +894,7 @@ int main(int argumentsNumber, char **arguments) {
                 matrixCellXY[0][0][0]=0; matrixCellXY[0][0][1]=0; matrixCellPhi[0][0]=absoluteMinimum2;
                 matrixCellXY[0][1][0]=unitCellAtCP[0]/2.0; matrixCellXY[0][1][1]=unitCellAtCP[1]/2.0; matrixCellPhi[0][1]=absoluteMinimum2;
             } break;
-            case 5: {//dla pentamerow o d/\sigma=1
+            /*case 5: {//dla pentamerow o d/\sigma=1
                 unitCellAtCP[0]=2.4048671732*multimerS; unitCellAtCP[1]=4.2360679772*multimerS;
                 n[0]=1; n[1]=2;
                 matrixCellXY[0][0][0]=0; matrixCellXY[0][0][1]=0; matrixCellPhi[0][0]=C;
@@ -911,7 +921,7 @@ int main(int argumentsNumber, char **arguments) {
                     matrixCellXY[0][1][0]=1.2832327269*multimerS; matrixCellXY[0][1][1]=unitCellAtCP[1]/2.0; matrixCellPhi[0][1]=-0.2843960475;
                     matrixCellXY[1][1][0]=4.2986859225*multimerS; matrixCellXY[1][1][1]=2.8916286250*multimerS; matrixCellPhi[1][1]=0.2843960475;
                 } break;
-            } break;
+            } break;*/
             /*case 95: switch (initMode) {
                 case 0: {//naprzemienne katy o C (jednakowe katy w rzedzie)
                     unitCellAtCP[0]=31.1028*multimerS; unitCellAtCP[1]=54.084*multimerS;
@@ -1012,7 +1022,10 @@ int main(int argumentsNumber, char **arguments) {
             } break;*/
             default: {
                 unitCellAtCP[0]=maxDistance; unitCellAtCP[1]=maxDistance*sqrt(3);
-                n[0]=1; n[1]=2;
+                //pudło prostokątne
+                //n[0]=1; n[1]=2;
+                //pudło rombowe
+                n[0]=1; n[1]=1;
                 matrixCellXY[0][0][0]=0; matrixCellXY[0][0][1]=0; matrixCellPhi[0][0]=C;
                 matrixCellXY[0][1][0]=unitCellAtCP[0]/2.0; matrixCellXY[0][1][1]=unitCellAtCP[1]/2.0; matrixCellPhi[0][1]=C;
             } break;
@@ -1022,8 +1035,12 @@ int main(int argumentsNumber, char **arguments) {
         else if (floor(sqrt(N))==sqrt(N)) {matrixOfParticlesSize[0]=matrixOfParticlesSize[1]=sqrt(N);}
         double NLinearMod = sqrt(N/matrixOfParticlesSize[0]/matrixOfParticlesSize[1]);
         if (startArg[0]==arg[0]) {
-            for (int i=0;i<2;i++) boxMatrix[i][i]=matrixOfParticlesSize[i]*unitCellAtCP[i]/(double)n[i]*NLinearMod*(growing?sqrt(startMinPacFrac):sqrt(startMaxPacFrac));
-            boxMatrix[1][0]=0.0; boxMatrix[0][1]=0.0;
+            //pudło prostokątne
+            //for (int i=0;i<2;i++) boxMatrix[i][i]=matrixOfParticlesSize[i]*unitCellAtCP[i]/(double)n[i]*NLinearMod*(growing?sqrt(startMinPacFrac):sqrt(startMaxPacFrac));
+            //boxMatrix[1][0]=0.0; boxMatrix[0][1]=0.0;
+            //pudło rombowe - probably works only for matrixOfParticlesSize[0]==[1]==sqrt(N), because for different [0]!=[1] there won't be 15deg at both box sizes (because box[0][1] HAS TO BE EQUAL box[1][0])
+            for (int i=0;i<2;i++) boxMatrix[i][i]=matrixOfParticlesSize[i]*unitCellAtCP[0]/(double)n[i]*NLinearMod*(growing?sqrt(startMinPacFrac):sqrt(startMaxPacFrac))*cos(pi/12.0);
+            boxMatrix[1][0]=boxMatrix[0][1]=-matrixOfParticlesSize[0]*unitCellAtCP[0]/(double)n[0]*NLinearMod*(growing?sqrt(startMinPacFrac):sqrt(startMaxPacFrac))*sin(pi/12.0);
         } else for (int i=0;i<2;i++) for (int j=0;j<2;j++) boxMatrix[i][j]=oldBoxMatrix[i][j];
         detBoxMatrix=boxMatrix[0][0]*boxMatrix[1][1]-boxMatrix[1][0]*boxMatrix[0][1];
         double volume=fabs(detBoxMatrix), rho=N/volume, pacFrac=1.0/VcpPerParticle/rho;
@@ -1127,7 +1144,7 @@ int main(int argumentsNumber, char **arguments) {
 /////////////////////////////////////////////// RDZEN MC
 
             long volumeMoveChance=(int)ceil(activeN/sqrt(activeN)),
-                fullCycle=activeN/4+volumeMoveChance,cycle=0,   //UWAGA cycle LONG, nie moze byc za duzo cykli
+                fullCycle=activeN/latticeNodes+volumeMoveChance,cycle=0,   //UWAGA cycle LONG, nie moze byc za duzo cykli
                 timeStart,timeEquilibration=0,timeEnd,
                 attemptedNumberR=0, displacedNumberR=0,
                 attemptedNumberV=0, displacedNumberV=0,
@@ -1167,10 +1184,10 @@ int main(int argumentsNumber, char **arguments) {
             for (double iStep=1;iStep<nStep;iStep++) {
                 int randIndex;
                 if (volumeMove) {
-                    randIndex = (int)(MTGenerate(randomStartStep)%1000000/1000000.0*(activeN/4));
+                    randIndex = (int)(MTGenerate(randomStartStep)%1000000/1000000.0*(activeN/latticeNodes));
                     volumeMove=0;
                 } else randIndex = (int)(MTGenerate(randomStartStep)%1000000/1000000.0*fullCycle);
-                if (randIndex<activeN/4) {
+                if (randIndex<activeN/latticeNodes) {
                     attemptedNumberR++;
                     if (attemptToDisplaceAParticle(particles,randIndex,boxMatrix))
                         displacedNumberR++;
@@ -1661,11 +1678,11 @@ int main(int argumentsNumber, char **arguments) {
             fileAllOrientationsResults = fopen(allOrientationsResultsFileName,"w");
 
             if (saveConfigurations) {
-                fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%ld\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,avNu,dAvNu,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll,savedConfigurationsInt,avAbsDPhi);
-                fprintf(fileExcelResults,"%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%ld\t%.12f\n",pressureReduced,avPacFrac,avNu,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll,avB,avMy,avE,savedConfigurationsInt,avAbsDPhi);
+                fprintf(fileResults,"%ld\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%ld\t%.17f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,avNu,dAvNu,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll,savedConfigurationsInt,avAbsDPhi);
+                fprintf(fileExcelResults,"%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%ld\t%.17f\n",pressureReduced,avPacFrac,avNu,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll,avB,avMy,avE,savedConfigurationsInt,avAbsDPhi);
             } else {
-                fprintf(fileResults,"%ld\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,avNu,dAvNu,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll);
-                fprintf(fileExcelResults,"%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\t%.12f\n",pressureReduced,avPacFrac,avNu,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll,avB,avMy,avE);
+                fprintf(fileResults,"%ld\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\n",(cycle+arg5),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,avNu,dAvNu,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll);
+                fprintf(fileExcelResults,"%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\t%.17f\n",pressureReduced,avPacFrac,avNu,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll,avB,avMy,avE);
             }
 
             if (!onlyMath[0]) {

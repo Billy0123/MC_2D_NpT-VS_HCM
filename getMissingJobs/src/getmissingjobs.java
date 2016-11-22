@@ -10,7 +10,7 @@ public class getmissingjobs {
 
     public getmissingjobs (int minDirectory, int maxDirectory, int minPoint, int maxPoint, int maxJobID, String N, String gaps, 
             String G, String mN, String mS, String mD, String startArgumentsFileName, String fileRunningJobsName, String filterText, 
-            String fileJobIDName, int startPreviousIteration, String[] fileDirectoriesName, String[] filePointsName, String rows, String diskD) {
+            String fileJobIDName, int startPreviousIteration, String[] fileDirectoriesName, String[] filePointsName) {
         try {
             parameters[0]=fileDirectoriesName[1];
             parameters[1]=filePointsName[1];
@@ -55,11 +55,11 @@ public class getmissingjobs {
                 saveDirectories.write(String.valueOf(i+1)); saveDirectories.newLine();
                 savePoints.write(String.valueOf(j)); savePoints.newLine();
 
-                String actualFolderList[] = new File("2D_N-"+N+"_gaps-"+gaps+"_G-"+G+"_badanie-"+String.valueOf(i+1)+"_mN-"+mN+"_mS-"+mS+"_mD-"+mD+"_r-"+rows+"_d-"+diskD).list();
+                String actualFolderList[] = new File("2D_N-"+N+"_gaps-"+gaps+"_G-"+G+"_badanie-"+String.valueOf(i+1)+"_mN-"+mN+"_mS-"+mS+"_mD-"+mD).list();
                 int minJobID = maxJobID;
                 if (actualFolderList!=null) for (int k=0;k<actualFolderList.length;k++) 
-                    if (actualFolderList[k].contains(pressureList[G.equals("1")?j:(pressureList.length-1-j)])) 
-                        if (actualFolderList[k].contains("Configurations") && !actualFolderList[k].endsWith("Results.txt") && !actualFolderList[k].endsWith("transient.txt")) 
+                    if (actualFolderList[k].contains("arg-"+pressureList[G.equals("1")?j:(pressureList.length-1-j)])) 
+                        if (actualFolderList[k].contains("Configurations") && actualFolderList[k].endsWith("Results.txt") && !actualFolderList[k].endsWith("transient.txt")) 
                             try{minJobID = Math.min(minJobID,Integer.parseInt(actualFolderList[k].substring(2).split("_")[0]));}catch(Exception e1){}
                 saveJobIDs.write(String.valueOf(minJobID+startPreviousIteration)); saveJobIDs.newLine();
             }
@@ -71,7 +71,7 @@ public class getmissingjobs {
     
     public static void main(String[] args) {       
         new getmissingjobs(Integer.parseInt(args[0]),Integer.parseInt(args[1]),Integer.parseInt(args[2]),Integer.parseInt(args[3]),Integer.parseInt(args[4]),args[5],args[6], 
-            args[7],args[8],args[9],args[10],args[11],args[12],args[13],args[14],Integer.parseInt(args[15]),args[16].split("!"),args[17].split("!"),args[18],args[19]);
+            args[7],args[8],args[9],args[10],args[11],args[12],args[13],args[14],Integer.parseInt(args[15]),args[16].split("!"),args[17].split("!"));
     }
     
 }

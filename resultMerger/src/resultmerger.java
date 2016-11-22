@@ -6,13 +6,13 @@ import java.io.FileReader;
 import java.io.FileWriter;
 
 public class resultmerger {
-    String N,gaps,G,mN,mS,mD,badanieStart,badanieEnd,newDirectoryName,rows,diskD;
+    String N,gaps,G,mN,mS,mD,badanieStart,badanieEnd,newDirectoryName;
     
     String getDirectoryName(String badanieNumber) {
-        return "2D_N-"+N+"_gaps-"+gaps+"_G-"+G+"_badanie-"+badanieNumber+"_mN-"+mN+"_mS-"+mS+"_mD-"+mD+"_r-"+rows+"_d-"+diskD;
+        return "2D_N-"+N+"_gaps-"+gaps+"_G-"+G+"_badanie-"+badanieNumber+"_mN-"+mN+"_mS-"+mS+"_mD-"+mD;
     }
     
-    public resultmerger (String newDirectoryName, String N, String gaps, String G, String mN, String mS, String mD, String badanieStart, String badanieEnd, int liczbaDanych, String rows, String diskD) {
+    public resultmerger (String newDirectoryName, String N, String gaps, String G, String mN, String mS, String mD, String badanieStart, String badanieEnd, int liczbaDanych) {
         this.newDirectoryName=newDirectoryName;
         this.N=N;
         this.gaps=gaps;
@@ -22,8 +22,6 @@ public class resultmerger {
         this.mD=mD;
         this.badanieStart=badanieStart;
         this.badanieEnd=badanieEnd;
-        this.rows=rows;
-        this.diskD=diskD;
            
         File resultsDirectory = new File(newDirectoryName); resultsDirectory.mkdir();
         resultsDirectory = new File(newDirectoryName+"/"+getDirectoryName(String.valueOf(badanieStart))); resultsDirectory.mkdir();
@@ -118,6 +116,6 @@ public class resultmerger {
     }
 
     public static void main(String[] args) {
-        new resultmerger(args[0],args[1],args[2],args[3],args[4],args[5],args[6],args[7],args[8],Integer.parseInt(args[9]),args[10],args[11]);
+        new resultmerger(args[0],args[1],args[2],args[3],args[4],args[5],args[6],args[7],args[8],Integer.parseInt(args[9]));
     }
 }

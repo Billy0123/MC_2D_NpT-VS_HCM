@@ -30,16 +30,17 @@ echo "==============================="
 cp $PBS_O_WORKDIR/program .
 cp $PBS_O_WORKDIR/config.txt .
 cp $PBS_O_WORKDIR/startArguments.txt .
+echo "files copied"
 mkdir 2D_N-${VAR2}_gaps-${VAR3}_G-${VAR6}_badanie-${VAR9}_mN-6_mS-${VAR4}_mD-${VAR5}_r-${VAR11}_d-${VAR12}
 cp $PBS_O_WORKDIR/2D_N-${VAR2}_gaps-${VAR3}_G-${VAR6}_badanie-${VAR9}_mN-6_mS-${VAR4}_mD-${VAR5}_r-${VAR11}_d-${VAR12}/j-${VAR1}_Configurations_arg-${PRESSURE}.txt 2D_N-${VAR2}_gaps-${VAR3}_G-${VAR6}_badanie-${VAR9}_mN-6_mS-${VAR4}_mD-${VAR5}_r-${VAR11}_d-${VAR12} && {
 
    #UWAGA #4: Mozna do programu zadac jobID rowny np. 'repeats left' (lub 'none' gdy to zwykla rekurencja [a nie onePoint]). Wtedy w przypadku ewentualnej reanimacji powinno byc latwiej (bo: komenda 'sacct' [i podobne], czy nawet zapis w ERR [jezeli akurat powstanie - na co liczyc nie mozna] da co prawda informacje o jobID nieudanego jobu, jednak NIE DA informacji o jobID jobu 'poprzedniego' [z ktorego on korzystal i ktorego znajomosc potrzebna jest do reanimacji]) - nie bedzie trzeba go szukac po folderach indywidualnie dla kazdego reanimowanego jobu.
-   time ./program 4 $PBS_JOBID $VAR1 $VAR2 $VAR3 $VAR4 $VAR5 $VAR6 $VAR7 $VAR8 $VAR9 0 $VAR11 $VAR12
+   time ./program 4 $VAR1 $VAR1 $VAR2 $VAR3 $VAR4 $VAR5 $VAR6 $VAR7 $VAR8 $VAR9 0 $VAR11 $VAR12
 
    cp -fr 2D_N-${VAR2}_gaps-${VAR3}_G-${VAR6}_badanie-${VAR9}_mN-6_mS-${VAR4}_mD-${VAR5}_r-${VAR11}_d-${VAR12} $PBS_O_WORKDIR
    #UWAGA #5: PBS kasuje po sobie tempa automatycznie
 
-   ssh ui.inula.man.poznan.pl "cd $PBS_O_WORKDIR; qsub -N ${filterText}G${VAR6}B${VAR9}P$(($VAR7 + $VAR8)) -o output/OUT_HCH${VAR2}_gaps-${VAR3}_mS-${VAR4}_mD-${VAR5}_G-${VAR6}_B-${VAR9}_P-$(($VAR7 + $VAR8))_r-${VAR11}_d-${VAR12}_prevJobID-${PBS_JOBID}.txt -e output/ERR_HCH${VAR2}_gaps-${VAR3}_mS-${VAR4}_mD-${VAR5}_G-${VAR6}_B-${VAR9}_P-$(($VAR7 + $VAR8))_r-${VAR11}_d-${VAR12}_prevJobID-${PBS_JOBID}.txt -v VAR1=$PBS_JOBID,VAR2=$VAR2,VAR3=$VAR3,VAR4=$VAR4,VAR5=$VAR5,VAR6=$VAR6,VAR7=$(($VAR7 + $VAR8 - 1)),VAR8=$VAR8,VAR9=$VAR9,VAR10=$VAR10,filterText=${filterText},VAR11=$VAR11,VAR12=$VAR12 qsubTMPRecursion";
+   ssh ui.inula.man.poznan.pl "cd $PBS_O_WORKDIR; qsub -N ${filterText}G${VAR6}B${VAR9}P$(($VAR7 + $VAR8)) -o output/OUT_HCH${VAR2}_gaps-${VAR3}_mS-${VAR4}_mD-${VAR5}_G-${VAR6}_B-${VAR9}_P-$(($VAR7 + $VAR8))_r-${VAR11}_d-${VAR12}_prevJobID-${PBS_JOBID}.txt -e output/ERR_HCH${VAR2}_gaps-${VAR3}_mS-${VAR4}_mD-${VAR5}_G-${VAR6}_B-${VAR9}_P-$(($VAR7 + $VAR8))_r-${VAR11}_d-${VAR12}_prevJobID-${PBS_JOBID}.txt -v VAR1=$VAR1,VAR2=$VAR2,VAR3=$VAR3,VAR4=$VAR4,VAR5=$VAR5,VAR6=$VAR6,VAR7=$(($VAR7 + $VAR8 - 1)),VAR8=$VAR8,VAR9=$VAR9,VAR10=$VAR10,filterText=${filterText},VAR11=$VAR11,VAR12=$VAR12 qsubTMPRecursion";
 } || {
    echo "Missing configuration file (previous job failed) or actual job failed at any step. Stopping recursion.";
 }

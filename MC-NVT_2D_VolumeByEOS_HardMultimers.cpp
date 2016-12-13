@@ -1075,7 +1075,7 @@ int main(int argumentsNumber, char **arguments) {
                             }
                             particles[pIndex].normR[0]=(boxMatrix[1][1]*particles[pIndex].r[0]-boxMatrix[0][1]*particles[pIndex].r[1])/detBoxMatrix;
                             particles[pIndex].normR[1]=-(boxMatrix[1][0]*particles[pIndex].r[0]-boxMatrix[0][0]*particles[pIndex].r[1])/detBoxMatrix;
-                            for (unsigned int i=0;i<32+strlen(bufferMN);i++) fgetc(fileCTL);
+                            for (unsigned int i=0;i<30+strlen(bufferMS)-3+strlen(bufferMD)-7+strlen(bufferMN);i++) fgetc(fileCTL);
                             if (pIndex>=activeN-1) dataType++;
                         }
                     }

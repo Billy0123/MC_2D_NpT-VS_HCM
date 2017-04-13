@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=HCHRecSNTMP
-#SBATCH -p quick
-#SBATCH --time=0-00:05:00
+#SBATCH -p standard
+#SBATCH --time=0-10:00:00
 #sbatch --no-requeue
 #SBATCH --output=output/OUT_HCH3120_100_%j.txt
 #SBATCH --error=output/ERR_HCH3120_100_%j.txt

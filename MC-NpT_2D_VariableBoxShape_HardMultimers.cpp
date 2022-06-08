@@ -1,4 +1,4 @@
-#include <math.h>
+﻿#include <math.h>
 #include <time.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -8,19 +8,35 @@
 
 #include "MTGenerator.h"
 
+/*State of optional functions:  (remember to always update text below after changing this file)
+ -analyticMethodForHCM - INACTIVE
+ -analyticCheck - INACTIVE
+ -analyticMinDistanceCheckForHighAnisotropy - INACTIVE    (przy highAnisotropy - dla cząstek NIEgwiaździstych metoda 'sama' analityczna nie działa (zwraca zawsze 'wewnętrzne' minDist), a 'sama moja' może mieć przeskoki do 'wnętrza cząstek' (w niskich gęstościach, gdy cząstki mogą dokonywać 'zahaczeń' przy takiej wzajemnej orientacji, że w dalszym ciągu są od siebie DALEJ niż minDist). Metoda łączona to nic innego, jak metoda 'moja', ale z następującym przed nią samą warunkiem na minDist w funkcji kąta (a nie o stałej wartości minDist dla kąta krytycznego)
+ -central interaction from KVT PhD - INACTIVE (może być aktywne tylko wtedy, gdy analyticMinDistanceCheckForHighAnisotropy jest NIEaktywne)
+ -adjustAngles - ACTIVE
+ -adjustOddRowsTranslation - INACTIVE
+ -rotationsAnalysis - ACTIVE
+ -utrzymywanie kata w granicy od C/3 do C - INACTIVE
+ -rectangularMovesOnly - INACTIVE
+ -matrix - INACTIVE
+*/
+
 int N,gaps,activeN,loadedConfiguration,loadType=0,loadedSetStartGenerator,loadedSetGenerator,iterationsNumber,
     growing,multimerN,countCollidingPairs,ODFLength,OCFMode,skipFirstIteration,saveConfigurations,
     useSpecificDirectory,useFileToIterate,fileIterateIterationsNumber=0,actIteration=0,multiplyArgument,
-    onlyMath[2]={0,0},initMode;
+    onlyMath[2]={0,0},initMode,neighUpdatingFrequency;
 long cyclesOfEquilibration,cyclesOfMeasurement,timeEq=0,timeMe=0,timeMath=0,intervalSampling,intervalOutput,intervalResults,intervalOrientations,savedConfigurationsInt,generatorStartPoint=0;
 double maxDeltaR,desiredAcceptanceRatioR,desiredAcceptanceRatioV,
        startMinPacFrac,startMaxPacFrac,minArg,maxArg,loadedArg,
        intervalMin[10],intervalMax[10],intervalDelta[10],
        startArg[2],deltaR,deltaPhi,deltaV=0.1, //*sigma(=1)
        multimerS,multimerD,randomStartStep[2],detBoxMatrix,
-       neighRadius,neighRadius2,neighRadiusMod,neighSafeDistance,multiplyFactor,pressureRealOfNotFluid,
-       iterationTable[1000][3],pi=3.1415926535898;
-double L,C,ROkreguOpisanego,absoluteMinimum,absoluteMinimum2,minDistance,maxDistance,VcpPerParticle;
+       neighRadius,neighRadius2,multiplyFactor,pressureRealOfNotFluid,
+       iterationTable[1000][3],pi=M_PI; //Problem typu-Pi (program przestawał działać dla wyższej precyzji Pi) to problem precyzji double. AKURAT dla 0.500001 się on zaczyna (przy 0.500010 jeszcze wszystko działa dobrze). Chodzi o to, że dla programu w C++ d=0.500001 to tak naprawdę: 0.500001000000000023 (np.), a dla takiej średnicy, procedury zwracają już INNE absoluteMinimum i minDistance. Normalnie cyfry tak 'dalekie' mogą być pominięte, ale przy d=0.500001 zaczyna już to odgrywać rolę. Zmniejszenie precyzji PI tak naprawdę ZMNIEJSZAŁO PI (ucięcie ostatnich liczb rozwinięcia) co jakoś przekładało się na to, że program zwracał 'wyglądające na dobre' wyniki.
+       //UWAGA-update: coś dziwnego dalej się dzieje dla niektórych cząstek z wysoką anizotropią. Program działa poprawnie dla d/s>=0.516000 lub 0.500100>=d/s>=0.500010. W przedziałach: 0.516>d/s>0.5001 oraz 0.500010>d/s dzieje się coś dziwnego, co sprawia, że minDist (analitycznie zwracany) jest BŁĘDNY (absoluteDistance jest zawsze OK). Na szczęście: cząstki 0.51 można badać samą moją metodą, a cząstki 0.50001 metodą łączoną.
+       //WARTE ODNOTOWANIA: powyższe problemy dotyczą tylko metody analitycznej, która czasami zwraca minDist 'wewnętrzne' a czasami 'zewnętrzne' (dla cząstek NIEgwiaździstych są dwie takie wielkości), a powinna ZAWSZE zwracać 'wewnętrzne' (w Mathematice tak robi). Moja metoda sprawdza JEDYNIE przekrycia, przez co dla bardzo wysokich anizotropii może po prostu czasami pozwolić na 'zabroniony jump' do 'środka' sąsiedniej molekuły (jednak wówczas warunek dr<minDist powinien się załączyć - chyba, że w niskich gęstościach, gdy cząstki mogą dokonywać 'zahaczeń' przy takiej wzajemnej orientacji, że w dalszym ciągu są od siebie DALEJ niż minDist). Problem w tym, że te minDist obliczane jest z metody analitycznej, która, jak opisałem powyżej, dla niektórych anizotropii przestaje działać - zawsze można wbić te minDist na sztywno z Mathematici.
+       //UWAGA-update#2: to jest jeszcze bardziej pojebane, dla kolejnych: 0.500001, 0.501, 0.502, 0.503, 0.504, 0.506... zupełnie losowo zwracane są poprawne/błędne wartości minDist. Zmniejszając dokładność pi, niektóre się naprawiają, a inne psują, naprzemian, zupełnie losowo... lepiej minDist z Mathematici (7sem/NajszybszaMetoda/analityczna.nb) wprowadzać po prostu dla badanych mD.
+double L,C,ROkreguOpisanego,absoluteMinimum,absoluteMinimum2,minDistance,maxDistance,VcpPerParticle,dr[3];
 char buffer[200]="",bufferN[20],bufferGaps[20],bufferG[5],bufferMN[20],bufferMS[20],bufferMD[20],bufferFolderIndex[5],
      resultsFileName[200]="ResultsSummary.txt",
      excelResultsFileName[200]="ExcelResultsSummary.txt",
@@ -31,19 +47,30 @@ char buffer[200]="",bufferN[20],bufferGaps[20],bufferG[5],bufferMN[20],bufferMS[
      configurationsListFileName[200]="ConfigurationsList.txt",
      loadConfigurationsFileName[200]="Configurations",
      loadedJOBID[50]="j-none";
-/* //matrix 1/16
+/* //matrix 1/15
 int boxCellsN[200][200],boxCellsIndex[200][200][10];
 double bCSize[2];
 */
 /////////////////  PARTICLE functions{
-typedef struct particle {
+typedef struct {
     double r[2], normR[2];  //x,y
     double phi;   //kąt mierzony od kierunku x
-    int neighbours[20], neighCounter;
-    //int cell[2]; //matrix 2/16
+    int neighbours[15], neighCounter;   //dla N=49920 trzeba zmniejszyć (z 50 np. na 10), jeżeli chce się działać na stacku. Uwaga na przepełnienie neighbours[] - wówczas przy tworzeniu listy sąsiadów program może 'pisać' w innych zmiennych, np. w r[] zamiast informować (już tak bywało)
+    //int cell[2]; //matrix 2/15
 } particle;
 
-/*void assignParticlesToCells (particle *particles, double boxMatrix[2][2]) { //matrix 3/16
+
+void getParticlesDistanceSquared (particle *p1, particle *p2, double boxMatrix[2][2]) {
+    double normalizedRX=p1->normR[0]-p2->normR[0],
+           normalizedRY=p1->normR[1]-p2->normR[1],
+           rx=p1->r[0]-p2->r[0],
+           ry=p1->r[1]-p2->r[1];
+    rx-=round(normalizedRX)*boxMatrix[0][0]+round(normalizedRY)*boxMatrix[0][1];
+    ry-=round(normalizedRX)*boxMatrix[1][0]+round(normalizedRY)*boxMatrix[1][1];
+    dr[0]=rx; dr[1]=ry; dr[2]=rx*rx+ry*ry;
+}
+
+/*void assignParticlesToCells (particle *particles, double boxMatrix[2][2]) { //matrix 3/15
     bCSize[0]=boxMatrix[0][0]/maxDistance; bCSize[1]=boxMatrix[1][1]/maxDistance;
     for (int i=0;i<bCSize[0];i++) for (int j=0;j<bCSize[1];j++) {
         boxCellsN[i][j]=0;
@@ -56,39 +83,42 @@ typedef struct particle {
     }
 }*/
 
-void updateNeighbourList (particle *particles, double boxMatrix[2][2]) {
+void adjustNeighRadius (const double & volume) {
+    neighRadius=1.6*sqrt(volume)/sqrt(N);
+    neighRadius2=neighRadius*neighRadius;
+}
+
+void updateNeighbourList (particle *particles, double boxMatrix[2][2], const double & volume) {
+    adjustNeighRadius(volume);
     for (int i=0;i<activeN;i++) particles[i].neighCounter=0;
     for (int i=0;i<activeN-1;i++) for (int j=i+1;j<activeN;j++) {
-        double normalizedRX=particles[i].normR[0]-particles[j].normR[0],
-               normalizedRY=particles[i].normR[1]-particles[j].normR[1],
-               rx=particles[i].r[0]-particles[j].r[0],
-               ry=particles[i].r[1]-particles[j].r[1];
-        rx-=round(normalizedRX)*boxMatrix[0][0]+round(normalizedRY)*boxMatrix[0][1];
-        ry-=round(normalizedRX)*boxMatrix[1][0]+round(normalizedRY)*boxMatrix[1][1];
-        double r2=rx*rx+ry*ry;
-        if (r2<neighRadius2) {
+        getParticlesDistanceSquared(&particles[i],&particles[j],boxMatrix);
+        if (dr[2]<neighRadius2) {
             particles[i].neighbours[particles[i].neighCounter++]=j;
             particles[j].neighbours[particles[j].neighCounter++]=i;
         }
     }
 }
 
-double normalizeAngle (double phi) {//utrzymywanie phi w zakresie (-30st,30st) = (-Pi/n,Pi/n)
-    int change;
-    do {
-        change=0;
-        if (phi<-C) {
-            phi+=2*C;
-            change=1;
-        } else if (phi>C) {
-            phi-=2*C;
-            change=1;
-        }
-    } while (change==1);
-    return phi;
+double normalizeAngle (double phi) {//inaczej niż w Mathematice (loopedAngle[phi_]:=Mod[phi+C,2*C]-C), bo Mod[a,b] działa inaczej. Dla a>0 i b>0 nie ma rożnicy, ale dla a<0 i b>0 JEST. Mathematica zwraca wartości dodatnie (Mod[-1,10]=9), a C++ nie (fmod(-1,10)=-1).
+    phi=fmod(phi+C,2*C);
+    return phi<0?phi+C:phi-C;
 }
 
-double get2DiscsDistance (int aNum, int bNum, double dr, double aAngle, double bAngle) {
+void checkSinglePeriodicBoundaryConditions (particle *p, double boxMatrix[2][2]) {
+    for (int j=0;j<2;j++) {
+        for (int i=0;i<2;i++) p->r[i]-=floor(p->normR[j])*boxMatrix[i][j];
+        p->normR[j]=fmod(p->normR[j],1); if (p->normR[j]<0) p->normR[j]++;
+    }
+    //particle->phi=normalizeAngle(particle->phi);    //rotationsAnalysis(comment) 1/1
+}
+
+void checkPeriodicBoundaryConditions (particle *particles, double boxMatrix[2][2]) {
+    for (int i=0;i<activeN;i++)
+        checkSinglePeriodicBoundaryConditions(&particles[i],boxMatrix);
+}
+
+double get2DiscsDistance (const int & aNum, const int & bNum, const double & dr, const double & aAngle, const double & bAngle) {
     double discAngle = aAngle+aNum*2*C;
     double aNumDiscX = cos(discAngle)*ROkreguOpisanego,
            aNumDiscY = sin(discAngle)*ROkreguOpisanego;
@@ -99,10 +129,11 @@ double get2DiscsDistance (int aNum, int bNum, double dr, double aAngle, double b
     return sqrt(xDistance*xDistance+yDistance*yDistance);
 }
 
-int checkOverlaps (double dr, double aAngle, double bAngle) {
+int checkOverlaps (const double & dr, const double & aAngle, const double & bAngle) {
     int overlap=0;
     double startAAngle,startBAngle;
     int a,b;
+
     if (aAngle>absoluteMinimum2)
         if (aAngle>bAngle) {
             startAAngle=aAngle-2*C;
@@ -150,13 +181,50 @@ int checkOverlaps (double dr, double aAngle, double bAngle) {
     return overlap;
 }
 
-double minimalDistanceAnalyticalMethodHCM (int indeksPowierzchni, double aAngle, double bAngle, double a[4], double b[4]) {
-    double angleA=aAngle+a[indeksPowierzchni],angleB=bAngle+b[indeksPowierzchni],
-           buffer=sin(angleA)+sin(angleB);
-    return (ROkreguOpisanego*(cos(angleA)+cos(angleB))+sqrt(multimerD*multimerD-ROkreguOpisanego*ROkreguOpisanego*buffer*buffer));
+int checkOverlaps2DiscsMethod (const double & dr, const double & aAngle, const double & bAngle) {  //niska efektywność - można obliczyć najpierw położenia wszystkich sprawdzanych dysków, a potem tylko porównywać odległości zamiast kilkukrotnie obliczać położenie tych samych dysków metodą 'get2DiscsDistance'
+    int overlap=0;
+    double startAAngle=aAngle>0?aAngle-2*C:aAngle,
+           startBAngle=bAngle>0?bAngle+(multimerN-2)*C:bAngle+multimerN*C;
+    for (int j=0;j<2;j++) for (int k=0;k<2;k++)
+        if (get2DiscsDistance(j,k,dr,startAAngle,startBAngle)<multimerD) {
+            overlap=1;
+            j=2; k=2;
+            break;
+        }
+    return overlap;
 }
 
-double getMinimalDistanceAnalyticalMethodForEvenHCM (double aAngle, double bAngle) {
+int checkOverlaps3DiscsMethod (const double & dr, const double & aAngle, const double & bAngle) {  //niska efektywność - można obliczyć najpierw położenia wszystkich sprawdzanych dysków, a potem tylko porównywać odległości zamiast kilkukrotnie obliczać położenie tych samych dysków metodą 'get2DiscsDistance'
+    int overlap=0;
+    double startAAngle=aAngle-2*C,
+           startBAngle=bAngle+(multimerN-2)*C;
+    for (int j=0;j<3;j++) for (int k=0;k<3;k++)
+        if (get2DiscsDistance(j,k,dr,startAAngle,startBAngle)<multimerD) {
+            overlap=1;
+            j=3; k=3;
+            break;
+        }
+    return overlap;
+}
+
+int checkOverlapsAllDiscsMethod (const double & dr, const double & aAngle, const double & bAngle) {  //niska efektywność - można obliczyć najpierw położenia wszystkich sprawdzanych dysków, a potem tylko porównywać odległości zamiast kilkukrotnie obliczać położenie tych samych dysków metodą 'get2DiscsDistance'
+    int overlap=0;
+    for (int j=0;j<multimerN;j++) for (int k=0;k<multimerN;k++)
+        if (get2DiscsDistance(j,k,dr,aAngle,bAngle)<multimerD) {
+            overlap=1;
+            j=multimerN; k=multimerN;
+            break;
+        }
+    return overlap;
+}
+
+double minimalDistanceAnalyticalMethodHCM (const int & indeksPowierzchni, const double & aAngle, const double & bAngle, double a[4], double b[4]) {
+    double angleA=aAngle+a[indeksPowierzchni],angleB=bAngle+b[indeksPowierzchni],
+           buffer=sin(angleA)+sin(angleB);
+    return ROkreguOpisanego*(cos(angleA)+cos(angleB))+sqrt(multimerD*multimerD-ROkreguOpisanego*ROkreguOpisanego*buffer*buffer);
+}
+
+double getMinimalDistanceAnalyticalMethodForEvenHCM (const double & aAngle, const double & bAngle) {
     double a[4]={C,-C,C,-C}, b[4]={-C,-C,C,C};
     if (aAngle<-absoluteMinimum) {
         double ARCSIN=asin(sin(aAngle+C)*L/(L*cos(C)+sqrt(4.0-L*L)*sin(C))),
@@ -165,15 +233,15 @@ double getMinimalDistanceAnalyticalMethodForEvenHCM (double aAngle, double bAngl
         else return minimalDistanceAnalyticalMethodHCM(2,aAngle,bAngle,a,b);
     } else if (aAngle<0) {
         double ARCSIN=asin(sin(aAngle)/L*(L*cos(C)+sqrt(4.0-L*L)*sin(C))),
-               intersectionCurve14=aAngle,
                intersectionCurve34=-C-ARCSIN;
+        double intersectionCurve14=aAngle;
         if (bAngle>intersectionCurve14) return minimalDistanceAnalyticalMethodHCM(0,aAngle,bAngle,a,b);
         else if (bAngle>intersectionCurve34) return minimalDistanceAnalyticalMethodHCM(3,aAngle,bAngle,a,b);
         else return minimalDistanceAnalyticalMethodHCM(2,aAngle,bAngle,a,b);
     } else if (aAngle<absoluteMinimum) {
         double ARCSIN=asin(sin(aAngle)/L*(L*cos(C)+sqrt(4.0-L*L)*sin(C))),
-               intersectionCurve14=aAngle,
                intersectionCurve12=C-ARCSIN;
+        double intersectionCurve14=aAngle;
         if (bAngle>intersectionCurve12) return minimalDistanceAnalyticalMethodHCM(1,aAngle,bAngle,a,b);
         else if (bAngle>intersectionCurve14) return minimalDistanceAnalyticalMethodHCM(0,aAngle,bAngle,a,b);
         else return minimalDistanceAnalyticalMethodHCM(3,aAngle,bAngle,a,b);
@@ -185,7 +253,7 @@ double getMinimalDistanceAnalyticalMethodForEvenHCM (double aAngle, double bAngl
     }
 }
 
-double getMinimalDistanceAnalyticalMethodForOddHCM (double aAngle, double bAngle) {
+double getMinimalDistanceAnalyticalMethodForOddHCM (const double & aAngle, const double & bAngle) {
     double a[4]={C,-C,C,-C}, b[4]={-2*C,0,0,2*C};
     if (aAngle<-absoluteMinimum) {
         double ARCSIN = asin(sin(aAngle+C)*L/(L*cos(C)+sqrt(4.0-L*L)*sin(C))),
@@ -194,15 +262,15 @@ double getMinimalDistanceAnalyticalMethodForOddHCM (double aAngle, double bAngle
         else return minimalDistanceAnalyticalMethodHCM(2,aAngle,bAngle,a,b);
     } else if (aAngle<0) {
         double ARCSIN = asin(sin(aAngle)/L*(L*cos(C)+sqrt(4.0-L*L)*sin(C))),
-               intersectionCurve12 = aAngle+C,
                intersectionCurve23 = -ARCSIN;
+        double intersectionCurve12 = aAngle+C;
         if (bAngle>intersectionCurve12) return minimalDistanceAnalyticalMethodHCM(0,aAngle,bAngle,a,b);
         else if (bAngle>intersectionCurve23) return minimalDistanceAnalyticalMethodHCM(1,aAngle,bAngle,a,b);
         else return minimalDistanceAnalyticalMethodHCM(2,aAngle,bAngle,a,b);
     } else if (aAngle<absoluteMinimum) {
         double ARCSIN = asin(sin(aAngle)/L*(L*cos(C)+sqrt(4.0-L*L)*sin(C))),
-               intersectionCurve23 = -ARCSIN,
-               intersectionCurve34 = aAngle-C;
+               intersectionCurve23 = -ARCSIN;
+        double intersectionCurve34 = aAngle-C;
         if (bAngle>intersectionCurve23) return minimalDistanceAnalyticalMethodHCM(1,aAngle,bAngle,a,b);
         else if (bAngle>intersectionCurve34) return minimalDistanceAnalyticalMethodHCM(2,aAngle,bAngle,a,b);
         else return minimalDistanceAnalyticalMethodHCM(3,aAngle,bAngle,a,b);
@@ -214,7 +282,7 @@ double getMinimalDistanceAnalyticalMethodForOddHCM (double aAngle, double bAngle
     }
 }
 
-int checkOverlapsAnalyticalMethodHCM (double dr, double aAngle, double bAngle) {
+int checkOverlapsAnalyticalMethodHCM (const double & dr, double aAngle, double bAngle) {
     int overlap=0;
 
     aAngle=normalizeAngle(aAngle+C);
@@ -226,23 +294,17 @@ int checkOverlapsAnalyticalMethodHCM (double dr, double aAngle, double bAngle) {
     return overlap;
 }
 
-int createRandomGaps (particle *particles, double boxMatrix[2][2]) {
-    printf("Creating %d random gaps... ",gaps);
-    InitRandomMT();
+int createRandomGaps (particle *particles, double boxMatrix[2][2], const double & volume) {
+    printf("Creating %d random gaps... ",gaps); fflush(stdout);
+    adjustNeighRadius(volume);
     int gapsIndexes[gaps], attempt=0, innerAttempt=0, allReady=0;
     do {
         attempt++;
         for (int i=0;i<gaps;i++) {
-            gapsIndexes[i] = (int)(MTGenerate(randomStartStep)%1000000/1000000.0*N);
+            gapsIndexes[i] = (int)(MTRandom0to1(randomStartStep)*N);
             for (int j=0;j<i;j++) {
-                double normalizedRX=particles[gapsIndexes[i]].normR[0]-particles[gapsIndexes[j]].normR[0],
-                       normalizedRY=particles[gapsIndexes[i]].normR[1]-particles[gapsIndexes[j]].normR[1],
-                       rx=particles[gapsIndexes[i]].r[0]-particles[gapsIndexes[j]].r[0],
-                       ry=particles[gapsIndexes[i]].r[1]-particles[gapsIndexes[j]].r[1];
-                rx-=round(normalizedRX)*boxMatrix[0][0]+round(normalizedRY)*boxMatrix[0][1];
-                ry-=round(normalizedRX)*boxMatrix[1][0]+round(normalizedRY)*boxMatrix[1][1];
-                double r2=rx*rx+ry*ry, dr=sqrt(r2);
-                if (dr<neighRadius) {
+                getParticlesDistanceSquared(&particles[gapsIndexes[i]],&particles[gapsIndexes[j]],boxMatrix);
+                if (dr[2]<neighRadius2) {
                     i--;
                     innerAttempt++;
                     break;
@@ -279,12 +341,20 @@ int createRandomGaps (particle *particles, double boxMatrix[2][2]) {
                 particles[i].normR[j]=particles[i+actualGapIndex].normR[j];
             }
         }
-        printf("done\n");
+        printf("done\n"); fflush(stdout);
         return 1;
     }
 }
 
-int initPositions (particle *particles, double boxMatrix[2][2], double matrixOfParticlesSize[2], int n[2], double matrixCellXY[6][6][2], double matrixCellPhi[6][6], double pacFrac) {
+int initPositions (particle *particles, double boxMatrix[2][2], double matrixOfParticlesSize[2], int n[2], double matrixCellXY[6][6][2], double matrixCellPhi[6][6], const double & pacFrac, const double & volume) {
+    if (generatorStartPoint==0) {
+        printf("Setting start position of p-random number generator to actual CPU time (for INIT PROCEDURES)...\n");
+        InitRandomMT();
+    } else {
+        printf("Setting start position of p-random number generator to %ld (for INIT PROCEDURES)...\n",generatorStartPoint);
+        InitMT((unsigned int)generatorStartPoint);
+    }
+
     double mod=sqrt(N/matrixOfParticlesSize[0]/matrixOfParticlesSize[1]), interval[2][2], actualPosition[2];
     for (int i=0;i<2;i++) for (int j=0;j<2;j++) interval[i][j]=boxMatrix[i][j]/matrixOfParticlesSize[j]/mod*n[j];
     int rowCounter=0, columnCounter=0;
@@ -299,87 +369,73 @@ int initPositions (particle *particles, double boxMatrix[2][2], double matrixOfP
         particles[i].phi=matrixCellPhi[cellNumber[1][0]][cellNumber[1][1]];
 
         columnCounter++;
-        if (columnCounter>=matrixOfParticlesSize[0]*mod) {
+        if (columnCounter*1.000001>=matrixOfParticlesSize[0]*mod) {
             rowCounter++;
             columnCounter=0;
         }
     }
-    if (gaps>0) return createRandomGaps(particles,boxMatrix);
+    if (gaps>0) return createRandomGaps(particles,boxMatrix,volume);
     else return 1;
 }
 
-void adjustAngles (particle *particles, double boxMatrix[2][2]) {
-    int tryNumber=-1,collidingPairs=0;
-    printf("Angle adjusting... ");
-    do {
-        tryNumber++;
-
-        collidingPairs=0;
-        for (int i=0;i<activeN-1;i++) for (int j=i+1;j<activeN;j++) {
-            double normalizedRX=particles[i].normR[0]-particles[j].normR[0],
-                   normalizedRY=particles[i].normR[1]-particles[j].normR[1],
-                   rx=particles[i].r[0]-particles[j].r[0],
-                   ry=particles[i].r[1]-particles[j].r[1];
-            rx-=round(normalizedRX)*boxMatrix[0][0]+round(normalizedRY)*boxMatrix[0][1];
-            ry-=round(normalizedRX)*boxMatrix[1][0]+round(normalizedRY)*boxMatrix[1][1];
-            double r2=rx*rx+ry*ry, dr=sqrt(r2);
-            int energy;
-            if (dr<maxDistance) {
-                if (dr<minDistance) energy=1;
-                else {
-                    double gamma=atan(ry/rx),
-                            aAngle=particles[j].phi-gamma,
-                            bAngle=particles[i].phi-gamma;
-                    if (multimerN%2!=0) {
-                        if (rx>0) bAngle-=C;
-                        else aAngle-=C;
-                    }
-                    aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle);
-                    energy=checkOverlaps(dr,aAngle,bAngle);
+int getEnergyAll (particle *particles, double boxMatrix[2][2]) {
+    int energy=0;
+    for (int i=0;i<activeN-1;i++) for (int j=i+1;j<activeN;j++) {
+        getParticlesDistanceSquared(&particles[i],&particles[j],boxMatrix);
+        double drRoot=sqrt(dr[2]);
+        if (drRoot<maxDistance) {
+            if (drRoot<minDistance) energy=1;   //analyticMinDistanceCheckForHighAnisotropy 1/3
+            else {                              //
+            //double gamma=atan(dr[1]/dr[0]),aAngle=particles[j].phi-gamma,bAngle=particles[i].phi-gamma; if ((energy=checkOverlapsAnalyticalMethodHCM(drRoot,dr[0]>=0?normalizeAngle(aAngle):normalizeAngle(bAngle),dr[0]>=0?normalizeAngle(bAngle):normalizeAngle(aAngle)))==0) { //analyticMinDistanceCheckForHighAnisotropy
+                double gamma=atan(dr[1]/dr[0]),
+                       aAngle=particles[j].phi-gamma,
+                       bAngle=particles[i].phi-gamma;
+                if (multimerN%2!=0) {
+                    if (dr[0]>0) bAngle-=C;
+                    else aAngle-=C;
                 }
-                if (energy==1) {
-                    collidingPairs++;
-                    for (int k=0;k<activeN;k++) {
-                        particles[k].phi+=0.00001;
-                    }
-                    i=activeN; j=activeN; break;
-                }
+                aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle);
+                energy=checkOverlaps(drRoot,aAngle,bAngle);
+            }
+            if (energy==1) {
+                i=activeN; j=activeN; break;
             }
         }
-    } while (collidingPairs>0);
-    printf("Adjusted after: %d approach.\n",tryNumber);
-}
-
-void checkSinglePeriodicBoundaryConditions (particle *particle, double boxMatrix[2][2]) {
-    for (int j=0;j<2;j++) {
-        int change;
-        do {
-            change=0;
-            if (particle->normR[j]<0) {
-                particle->normR[j]++;
-                particle->r[0]+=boxMatrix[0][j];
-                particle->r[1]+=boxMatrix[1][j];
-                change=1;
-            } else if (particle->normR[j]>=1) {
-                particle->normR[j]--;
-                particle->r[0]-=boxMatrix[0][j];
-                particle->r[1]-=boxMatrix[1][j];
-                change=1;
-            }
-        } while (change==1);
     }
-    //particle->phi=normalizeAngle(particle->phi);    //rotationsAnalysis(comment) 1/1
+    return energy;
 }
 
-void checkPeriodicBoundaryConditions (particle *particles, double boxMatrix[2][2]) {
-    for (int i=0;i<activeN;i++)
-        checkSinglePeriodicBoundaryConditions(&particles[i],boxMatrix);
+void adjustAngles (particle *particles, double boxMatrix[2][2]) {
+    int tryNumber=-1,energy;
+    printf("Angle adjusting... "); fflush(stdout);
+    do {
+        tryNumber++;
+        energy=getEnergyAll(particles,boxMatrix);
+        if (energy==1) for (int k=0;k<activeN;k++) particles[k].phi+=0.00001;
+    } while (energy!=0);
+    printf("Adjusted after: %d approach.\n",tryNumber); fflush(stdout);
 }
 
-int getEnergy (particle *particles, int index, double boxMatrix[2][2]) {
+void adjustOddRowsTranslation (particle *particles, double boxMatrix[2][2], const int & partInRow) {
+    int tryNumber=-1,energy;
+    printf("Odd rows translation adjusting... "); fflush(stdout);
+    do {
+        tryNumber++;
+        energy=getEnergyAll(particles,boxMatrix);
+        if (energy==1) for (int k=0;k<activeN;k++) if ((k/partInRow)%2==1) {
+            particles[k].r[0]+=0.00000001*multimerS;
+            particles[k].normR[0]=(boxMatrix[1][1]*particles[k].r[0]-boxMatrix[0][1]*particles[k].r[1])/detBoxMatrix;
+            particles[k].normR[1]=-(boxMatrix[1][0]*particles[k].r[0]-boxMatrix[0][0]*particles[k].r[1])/detBoxMatrix;
+            checkSinglePeriodicBoundaryConditions(&particles[k],boxMatrix);
+        }
+    } while (energy!=0);
+    printf("Adjusted after: %d approach.\n",tryNumber); fflush(stdout);
+}
+
+int getEnergy (particle *particles, particle *dispPart, const int & index, double boxMatrix[2][2]) {
     int energy=0;
 
-    //matrix 4/16
+    //matrix 4/15
     /*for (int i=-1;i<=1;i++) for (int j=-1;j<=1;j++) {
         int cellIndex[2]={particles[index].cell[0]+i,particles[index].cell[1]+j};
         for (int k=0;k<2;k++) {
@@ -410,65 +466,56 @@ int getEnergy (particle *particles, int index, double boxMatrix[2][2]) {
     }*/
 
     for (int i=0;i<particles[index].neighCounter;i++) {
-        double normalizedRX=particles[particles[index].neighbours[i]].normR[0]-particles[index].normR[0],
-               normalizedRY=particles[particles[index].neighbours[i]].normR[1]-particles[index].normR[1],
-               rx=particles[particles[index].neighbours[i]].r[0]-particles[index].r[0],
-               ry=particles[particles[index].neighbours[i]].r[1]-particles[index].r[1];
-        rx-=round(normalizedRX)*boxMatrix[0][0]+round(normalizedRY)*boxMatrix[0][1];
-        ry-=round(normalizedRX)*boxMatrix[1][0]+round(normalizedRY)*boxMatrix[1][1];
-        double r2=rx*rx+ry*ry, dr=sqrt(r2);
-        if (dr<maxDistance) {
-            //if (dr<minDistance) energy=1; //analyticMethodForHCM 1/8
-            //else {                        //
-                double gamma=atan(ry/rx),
-                       aAngle=particles[index].phi-gamma,
+        getParticlesDistanceSquared(&particles[particles[index].neighbours[i]],dispPart,boxMatrix);
+        double drRoot=sqrt(dr[2]);
+        if (drRoot<maxDistance) {
+            if (drRoot<minDistance) energy=1;   //analyticMethodForHCM 1/8    //analyticMinDistanceCheckForHighAnisotropy 2/3
+            else {                              //                            //
+            //double gamma=atan(dr[1]/dr[0]),aAngle=particles[index].phi-gamma,bAngle=particles[particles[index].neighbours[i]].phi-gamma; if ((energy=checkOverlapsAnalyticalMethodHCM(drRoot,dr[0]>=0?normalizeAngle(aAngle):normalizeAngle(bAngle),dr[0]>=0?normalizeAngle(bAngle):normalizeAngle(aAngle)))==0) { //analyticMinDistanceCheckForHighAnisotropy
+                double gamma=atan(dr[1]/dr[0]),
+                       aAngle=dispPart->phi-gamma,
                        bAngle=particles[particles[index].neighbours[i]].phi-gamma;
                 if (multimerN%2!=0) {
                     //rozważanie, która molekuła jest 'po lewej', a która 'po prawej' (moja metoda-odwraca cząstkę po prawej; analityczna metoda-istotna kolejność)
-                    //if (rx>0) bAngle-=C;    //analytiCMethodForHCM 2/8
-                    //else aAngle-=C;         //
-                    if (rx<0) {
+                    if (dr[0]>0) bAngle-=C;     //analytiCMethodForHCM 2/8
+                    else aAngle-=C;             //
+                    /*if (dr[0]<0) {
                         double buffer=aAngle; aAngle=bAngle; bAngle=buffer;
-                    }
+                    }*/
                 }
-                //aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle); //analyticMethodForHCM 3/8
-                //energy=checkOverlaps(dr,aAngle,bAngle);                       //
-                energy=checkOverlapsAnalyticalMethodHCM(dr,aAngle,bAngle);
-            //} //analyticMethodForHCM 4/8
+                aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle);   //analyticMethodForHCM 3/8
+                energy=checkOverlaps(drRoot,aAngle,bAngle);                     //
+                //energy=checkOverlapsAnalyticalMethodHCM(dr,aAngle,bAngle);
+            } //analyticMethodForHCM 4/8
             if (energy==1) i=particles[index].neighCounter;
         }
     }
     return energy;
 }
 
-int attemptToDisplaceAParticle (particle *particles, int index, double boxMatrix[2][2]) {
+int attemptToDisplaceAParticle (particle *particles, const int & index, double boxMatrix[2][2]) {
     int result=1;
-    double oldR[2]={particles[index].r[0],particles[index].r[1]},
-           oldNormR[2]={particles[index].normR[0],particles[index].normR[1]},
-           oldPhi=particles[index].phi;
-    //int oldCell[2]={particles[index].cell[0],particles[index].cell[1]}; //matrix 5/16
-    for (int i=0;i<2;i++) particles[index].r[i]+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaR;
-    particles[index].normR[0]=(boxMatrix[1][1]*particles[index].r[0]-boxMatrix[0][1]*particles[index].r[1])/detBoxMatrix;
-    particles[index].normR[1]=-(boxMatrix[1][0]*particles[index].r[0]-boxMatrix[0][0]*particles[index].r[1])/detBoxMatrix;
-    particles[index].phi+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaPhi;
-    while (particles[index].phi>C || particles[index].phi<C/3.0) {  //utrzymywanie kata w granicy od C/3 do C, zeby czastki sie ladnie ustawialy
-        particles[index].phi=oldPhi;
-        particles[index].phi+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaPhi;
-    }
-    //checkSinglePeriodicBoundaryConditions(&particles[index],boxMatrix); //matrix 6/16
-    //for (int i=0;i<2;i++) particles[index].cell[i]=(int)(particles[index].normR[i]*bCSize[i]); //matrix 7/16
-    int newEnPot=getEnergy(particles,index,boxMatrix);
+    particle displacedParticle;
+    for (int i=0;i<2;i++) displacedParticle.r[i]=particles[index].r[i]+(MTRandom0to1(randomStartStep)-0.5)*deltaR;
+    displacedParticle.normR[0]=(boxMatrix[1][1]*displacedParticle.r[0]-boxMatrix[0][1]*displacedParticle.r[1])/detBoxMatrix;
+    displacedParticle.normR[1]=-(boxMatrix[1][0]*displacedParticle.r[0]-boxMatrix[0][0]*displacedParticle.r[1])/detBoxMatrix;
+    displacedParticle.phi=particles[index].phi+(MTRandom0to1(randomStartStep)-0.5)*deltaPhi;
+    //int oldCell[2]={particles[index].cell[0],particles[index].cell[1]}; //matrix 5/15
+    //while (displacedParticle.phi>C || displacedParticle.phi<C/3.0) displacedParticle.phi=particles[index].phi+(MTRandom0to1(randomStartStep)-0.5)*deltaPhi;  //utrzymywanie kata w granicy od C/3 do C, zeby czastki sie ladnie ustawialy
+    //checkSinglePeriodicBoundaryConditions(&particles[index],boxMatrix); //matrix 6/15
+    //for (int i=0;i<2;i++) particles[index].cell[i]=(int)(particles[index].normR[i]*bCSize[i]); //matrix 7/15
+    int newEnPot=getEnergy(particles,&displacedParticle,index,boxMatrix);
     if (newEnPot==1) {
-        for (int i=0;i<2;i++) {
-            particles[index].r[i]=oldR[i];
-            particles[index].normR[i]=oldNormR[i];
-            //particles[index].cell[i]=oldCell[i]; //matrix 8/16
-        }
-        particles[index].phi=oldPhi;
+        //for (int i=0;i<2;i++) particles[index].cell[i]=oldCell[i]; //matrix 8/15
         result=0;
     } else {
-        checkSinglePeriodicBoundaryConditions(&particles[index],boxMatrix); //matrix(comment) 9/16
-        /*if (particles[index].cell[0]!=oldCell[0] || particles[index].cell[1]!=oldCell[1]) { //matrix 10/16
+        for (int i=0;i<2;i++) {
+            particles[index].r[i]=displacedParticle.r[i];
+            particles[index].normR[i]=displacedParticle.normR[i];
+        }
+        particles[index].phi=displacedParticle.phi;
+        checkSinglePeriodicBoundaryConditions(&particles[index],boxMatrix); //matrix(comment) 9/15
+        /*if (particles[index].cell[0]!=oldCell[0] || particles[index].cell[1]!=oldCell[1]) { //matrix 10/15
             for (int i=0;i<boxCellsN[oldCell[0]][oldCell[1]];i++) if (boxCellsIndex[oldCell[0]][oldCell[1]][i]==index) {
                 boxCellsIndex[oldCell[0]][oldCell[1]][i]=boxCellsIndex[oldCell[0]][oldCell[1]][--boxCellsN[oldCell[0]][oldCell[1]]];
                 i=boxCellsN[oldCell[0]][oldCell[1]];
@@ -479,46 +526,55 @@ int attemptToDisplaceAParticle (particle *particles, int index, double boxMatrix
     return result;
 }
 
-int attemptToChangeVolume (particle *particles, double pressure, double boxMatrix[2][2], double *volume) {
+void cloneParticlesForSpecificBoxMatrix (particle* clonedParticles, particle *particles, double boxMatrix[2][2], double xAxisPhiFactor) {
+    for (int i=0;i<activeN;i++) {
+        for (int j=0;j<2;j++) clonedParticles[i].normR[j]=particles[i].normR[j];
+        for (int j=0;j<2;j++) clonedParticles[i].r[j]=boxMatrix[j][0]*particles[i].normR[0]+boxMatrix[j][1]*particles[i].normR[1];
+        clonedParticles[i].phi=particles[i].phi+xAxisPhiFactor;
+    }
+}
+
+int attemptToChangeVolume (particle *particles, const double & pressure, double boxMatrix[2][2], double & volume, double & xAxisPhi) {
     int result=1;
     double /*lnNewBoxMatrix[2][2], */newBoxMatrix[2][2];
-    if ((*volume)/VcpPerParticle/N<pressureRealOfNotFluid) {
+    if (volume/VcpPerParticle/N<pressureRealOfNotFluid) {
     //if (pressure>pressureRealOfNotFluid) {  //dozwolone zmiany ksztaltu pudla (faza stala)
         /*for (int i=0;i<2;i++) for (int j=0;j<2;j++) lnNewBoxMatrix[i][j]=log(boxMatrix[i][j]);
-        lnNewBoxMatrix[0][0]+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
-        lnNewBoxMatrix[1][1]+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
-        if (boxMatrix[0][1]==0) lnNewBoxMatrix[0][1]=-20.0+(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV; //log(0) -> -\infty; E^~0 za duze jak na start
-        else lnNewBoxMatrix[0][1]+=(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
+        lnNewBoxMatrix[0][0]+=(MTRandom0to1(randomStartStep)-0.5)*deltaV;
+        lnNewBoxMatrix[1][1]+=(MTRandom0to1(randomStartStep)-0.5)*deltaV;
+        if (boxMatrix[0][1]==0) lnNewBoxMatrix[0][1]=-20.0+(MTRandom0to1(randomStartStep)-0.5)*deltaV; //log(0) -> -\infty; E^~0 za duze jak na start
+        else lnNewBoxMatrix[0][1]+=(MTRandom0to1(randomStartStep)-0.5)*deltaV;
         lnNewBoxMatrix[1][0]=lnNewBoxMatrix[0][1];
         for (int i=0;i<2;i++) for (int j=0;j<2;j++) newBoxMatrix[i][j]=exp(lnNewBoxMatrix[i][j]);*/
-        newBoxMatrix[0][0]=boxMatrix[0][0]+(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
-        newBoxMatrix[1][1]=boxMatrix[1][1]+(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
-        newBoxMatrix[0][1]=boxMatrix[0][1]+(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
-        newBoxMatrix[1][0]=newBoxMatrix[0][1];
+
+        newBoxMatrix[0][0]=boxMatrix[0][0]+(MTRandom0to1(randomStartStep)-0.5)*deltaV;
+        newBoxMatrix[1][1]=boxMatrix[1][1]+(MTRandom0to1(randomStartStep)-0.5)*deltaV;
+        newBoxMatrix[0][1]=boxMatrix[0][1]+(MTRandom0to1(randomStartStep)-0.5)*deltaV;  //rectangularMovesOnly(comment second component on the right)
     } else {    //NIEdozwolone zmiany ksztaltu pudla (faza plynu)
-        /*lnNewBoxMatrix[0][0]=log(boxMatrix[0][0])+(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
+        /*lnNewBoxMatrix[0][0]=log(boxMatrix[0][0])+(MTRandom0to1(randomStartStep)-0.5)*deltaV;
         newBoxMatrix[0][0]=exp(lnNewBoxMatrix[0][0]);*/
-        newBoxMatrix[0][0]=boxMatrix[0][0]+(MTGenerate(randomStartStep)%1000000/1000000.0-0.5)*deltaV;
-
-        newBoxMatrix[1][1]=boxMatrix[1][1]/boxMatrix[0][0]*newBoxMatrix[0][0];
-        newBoxMatrix[0][1]=boxMatrix[0][1]; newBoxMatrix[1][0]=boxMatrix[1][0];
+        newBoxMatrix[0][0]=boxMatrix[0][0]+(MTRandom0to1(randomStartStep)-0.5)*deltaV;
+        double modifier=newBoxMatrix[0][0]/boxMatrix[0][0];
+        newBoxMatrix[1][1]=boxMatrix[1][1]*modifier;
+        newBoxMatrix[0][1]=boxMatrix[0][1]*modifier;
     }
+    newBoxMatrix[1][0]=newBoxMatrix[0][1];
     double newDetBoxMatrix=newBoxMatrix[0][0]*newBoxMatrix[1][1]-newBoxMatrix[1][0]*newBoxMatrix[0][1],
-           newVolume=fabs(newDetBoxMatrix);
+           newVolume=fabs(newDetBoxMatrix), newXAxisPhi=atan(newBoxMatrix[0][1]/newBoxMatrix[0][0]);
 
-    double bufferR[activeN][2];
+    //matrix 11/15
+    /*double bufferR[activeN][2];
     for (int i=0;i<activeN;i++) {
         bufferR[i][0]=newBoxMatrix[0][0]*particles[i].normR[0]+newBoxMatrix[0][1]*particles[i].normR[1];
         bufferR[i][1]=newBoxMatrix[1][0]*particles[i].normR[0]+newBoxMatrix[1][1]*particles[i].normR[1];
     }
 
-    //matrix 11/16
 //UWAGA: tutaj jest to zrobione na iterowaniu po komorkach, wyszlo jakies skomplikowane skanowanie tylko
 //komorek z gory i z prawej, zeby nie powtarzac, jakies rozpoznawanie komorki 'srodkowej'... pojawia sie przez to duzo if'ow, etc.
 //Moze lepiej zrobic analogicznie jak w przypadku listy sasiadow? Tzn. iterowac PO CZASTKACH, kazda sprawdzac z sasiadami z przyleglych
 //komorek, a zeby nie bylo powtarzania, zastosowac ten sam prosty warunek: porownywac tylko, gdy index rozpatrywanej czastki jest mniejszy od porownywanej.
 
-    /*for (int i=0;i<bCSize[0];i++) for (int j=0;j<bCSize[1];j++) {
+    for (int i=0;i<bCSize[0];i++) for (int j=0;j<bCSize[1];j++) {
         if (boxCellsN[i][j]>0) for (int k=0;k<5;k++) {
             int cellIndex[2];
             int zakresL=boxCellsN[i][j], startM=0;
@@ -568,34 +624,32 @@ int attemptToChangeVolume (particle *particles, double pressure, double boxMatri
         }
     }*/
 
+    particle *particlesInNewBox = new particle[activeN];  //dla dużych N (testowane dla N=16384 w 3D) stack nie wystarcza, trzeba użyć heapu (stack zostaje dla podstawowej tablicy czastek, jest ciut szybszy)
+    cloneParticlesForSpecificBoxMatrix(particlesInNewBox,particles,newBoxMatrix,newXAxisPhi-xAxisPhi);
     for (int i=0;i<activeN;i++) for (int j=0;j<particles[i].neighCounter;j++) {
         if (i<particles[i].neighbours[j]) {
-            double normalizedRX=particles[i].normR[0]-particles[particles[i].neighbours[j]].normR[0],
-                   normalizedRY=particles[i].normR[1]-particles[particles[i].neighbours[j]].normR[1],
-                   rx=bufferR[i][0]-bufferR[particles[i].neighbours[j]][0],
-                   ry=bufferR[i][1]-bufferR[particles[i].neighbours[j]][1];
-            rx-=round(normalizedRX)*newBoxMatrix[0][0]+round(normalizedRY)*newBoxMatrix[0][1];
-            ry-=round(normalizedRX)*newBoxMatrix[1][0]+round(normalizedRY)*newBoxMatrix[1][1];
-            double r2=rx*rx+ry*ry, dr=sqrt(r2);
-            if (dr<maxDistance) {
+            getParticlesDistanceSquared(&particlesInNewBox[i],&particlesInNewBox[particles[i].neighbours[j]],newBoxMatrix);
+            double drRoot=sqrt(dr[2]);
+            if (drRoot<maxDistance) {
                 int energy;
-                //if (dr<minDistance) energy=1; //analyticMethodForHCM 5/8
-                //else {                        //
-                    double gamma=atan(ry/rx),
-                           aAngle=particles[particles[i].neighbours[j]].phi-gamma,
-                           bAngle=particles[i].phi-gamma;
+                if (drRoot<minDistance) energy=1; //analyticMethodForHCM 5/8    //analyticMinDistanceCheckForHighAnisotropy 3/3
+                else {                            //                            //
+                //double gamma=atan(dr[1]/dr[0]),aAngle=particles[particles[i].neighbours[j]].phi-gamma,bAngle=particles[i].phi-gamma; if ((energy=checkOverlapsAnalyticalMethodHCM(drRoot,dr[0]>=0?normalizeAngle(aAngle):normalizeAngle(bAngle),dr[0]>=0?normalizeAngle(bAngle):normalizeAngle(aAngle)))==0) { //analyticMinDistanceCheckForHighAnisotropy
+                    double gamma=atan(dr[1]/dr[0]),
+                           aAngle=particlesInNewBox[particles[i].neighbours[j]].phi-gamma,
+                           bAngle=particlesInNewBox[i].phi-gamma;
                     if (multimerN%2!=0) {
                         //rozważanie, która molekuła jest 'po lewej', a która 'po prawej' (moja metoda-odwraca cząstkę po prawej; analityczna metoda-istotna kolejność)
-                        //if (rx>0) bAngle-=C;    //analytiCMethodForHCM 6/8
-                        //else aAngle-=C;         //
-                        if (rx<0) {
+                        if (dr[0]>0) bAngle-=C;     //analytiCMethodForHCM 6/8
+                        else aAngle-=C;             //
+                        /*if (dr[0]<0) {
                             double buffer=aAngle; aAngle=bAngle; bAngle=buffer;
-                        }
+                        }*/
                     }
-                    //aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle); //analyticMethodForHCM 7/8
-                    //energy=checkOverlaps(dr,aAngle,bAngle);                       //
-                    energy=checkOverlapsAnalyticalMethodHCM(dr,aAngle,bAngle);
-                //} //analyticMethodForHCM 8/8
+                    aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle); //analyticMethodForHCM 7/8
+                    energy=checkOverlaps(drRoot,aAngle,bAngle);                   //
+                    //energy=checkOverlapsAnalyticalMethodHCM(drRoot,aAngle,bAngle);
+                } //analyticMethodForHCM 8/8
                 if (energy==1) {
                     result=0;
                     i=activeN; break;
@@ -605,17 +659,20 @@ int attemptToChangeVolume (particle *particles, double pressure, double boxMatri
     }
 
     if (result) {
-        //double arg=-(pressure*(newVolume-(*volume))-(((double)N+1.0)*log(newVolume/(*volume))+log((newBoxMatrix[0][0]+newBoxMatrix[1][1])/(boxMatrix[0][0]+boxMatrix[1][1]))));
-        double arg=-(pressure*(newVolume-(*volume))+((double)N+1.0)*log(newVolume/(*volume))+log((newBoxMatrix[0][0]+newBoxMatrix[1][1])/(boxMatrix[0][0]+boxMatrix[1][1])));
-        if (MTGenerate(randomStartStep)%1000000/1000000.0>exp(arg)) result=0;
-        if (result) {
-            *volume=newVolume;
+        double arg=-(pressure*(newVolume-volume)-(((double)N+1.0)*log(newVolume/volume)+log((newBoxMatrix[0][0]+newBoxMatrix[1][1])/(boxMatrix[0][0]+boxMatrix[1][1]))));  //kT=1[hard] przy czynniku ciśnieniowym (pominięte)
+        if (MTRandom0to1(randomStartStep)>exp(arg)) result=0;
+        else {
+            volume=newVolume; xAxisPhi=newXAxisPhi;
             for (int i=0;i<2;i++) for (int j=0;j<2;j++) boxMatrix[i][j]=newBoxMatrix[i][j];
-            for (int i=0;i<activeN;i++) for (int j=0;j<2;j++) particles[i].r[j]=bufferR[i][j];
+            for (int i=0;i<activeN;i++) {
+                for (int j=0;j<2;j++) particles[i].r[j]=particlesInNewBox[i].r[j];
+                particles[i].phi=particlesInNewBox[i].phi;
+            }
             detBoxMatrix=newDetBoxMatrix;
         }
     }
 
+    delete [] particlesInNewBox; particlesInNewBox=NULL;
     return result;
 }
 /////////////////  } PARTICLE functions
@@ -708,14 +765,32 @@ void getNextArgument (double prevArg[2], bool countIterations) {
     }
 }
 
-double getAvErrorFromSumEps (double sum, double denominator) {
+inline bool isLineCorrect(char linia[4096]) {
+    sscanf(linia,"%c",linia);
+    int actIndex=0, dataIndex=0; while (dataIndex<3) {
+        char data[50]="";
+        int licznik=0, dotCounter=0;
+        while (linia[actIndex]!='\t' && (dotCounter=linia[actIndex]=='.'?dotCounter+1:dotCounter)<=1 && licznik<50) data[licznik++]=linia[actIndex++];
+        if (dotCounter>1 || licznik>=50) {dataIndex=10; continue;} //test of single dot in a number
+        actIndex++; dataIndex++;
+        if (dataIndex<10 && ((data[0]!='-' && data[1]!='.') || (data[0]=='-' && data[2]!='.'))) dataIndex=10; //test of dot position after first digit
+    } if (dataIndex<10 && linia[actIndex]!='\n') dataIndex=10; //test of max 3 numbers in a row
+
+    return (dataIndex<10);
+}
+
+inline double getAvErrorFromSumEps (const double & sum, const double & denominator) {
     return sqrt(sum/denominator);
+}
+
+void updateTableAndGetActualMean (double table[100], double & mean, int const & changeIndex, double const & changeValue) {
+    mean-=table[changeIndex]*0.01; table[changeIndex]=changeValue; mean+=changeValue*0.01;
 }
 
 int main(int argumentsNumber, char **arguments) {
 /////////////////////////////////////////////// DANE WEJSCIOWE
     int testValue; do {
-        char config[300];
+        char config[500];
         FILE *fileConfig = fopen("config.txt","rt");
         if (fileConfig==NULL) {
             printf("Missing file: config.txt\n");
@@ -725,10 +800,10 @@ int main(int argumentsNumber, char **arguments) {
         while(fgets(config,500,fileConfig)!=NULL) {
             sscanf(config,"%c",config);
             int actIndex=0,licznik=0;
-            char data[20];
+            char data[20]="";
             while (config[actIndex]!='=') actIndex++;
             actIndex++;
-            while (config[actIndex]!=';') data[licznik++]=config[actIndex++];
+            while (config[actIndex]!=';') data[licznik++]=config[actIndex++]; data[licznik]=' ';
             switch (dataIndex) {
                 case 0:testValue=strtol(data,NULL,10);break;
                 case 1:N=strtol(data,NULL,10);break;
@@ -752,7 +827,7 @@ int main(int argumentsNumber, char **arguments) {
                 case 19:savedConfigurationsInt=strtol(data,NULL,10);break;
                 case 20:ODFLength=strtol(data,NULL,10);break;
                 case 21:OCFMode=strtol(data,NULL,10);break;
-                case 22:neighRadiusMod=strtod(data,NULL);break;
+                case 22:neighUpdatingFrequency=strtol(data,NULL,10);break;
                 case 23:intervalOrientations=strtol(data,NULL,10);break;
                 case 24:skipFirstIteration=strtol(data,NULL,10);break;
                 case 25:useSpecificDirectory=strtol(data,NULL,10);break;
@@ -778,7 +853,6 @@ int main(int argumentsNumber, char **arguments) {
                     break;
             }
             dataIndex++;
-            for (int i=0;i<20;i++) data[i]=' ';
         }
         fclose(fileConfig);
     } while (testValue!=12345);
@@ -800,6 +874,7 @@ int main(int argumentsNumber, char **arguments) {
                 if (argumentsNumber==13) {
                     useFileToIterate=0;
                     strncat(JOBID,arguments[2],50); strcpy(loadedJOBID,JOBID);
+                    growing=strtol(arguments[9],NULL,10);
                     if (growing) {
                         startMinPacFrac=strtod(arguments[3],NULL); minArg=strtod(arguments[4],NULL);
                     } else {
@@ -809,7 +884,6 @@ int main(int argumentsNumber, char **arguments) {
                     gaps=strtol(arguments[6],NULL,10);
                     multimerS=strtod(arguments[7],NULL);
                     multimerD=strtod(arguments[8],NULL);
-                    growing=strtol(arguments[9],NULL,10);
                     iterationsNumber=strtol(arguments[10],NULL,10);
                     useSpecificDirectory=strtol(arguments[11],NULL,10);
                     multimerN=strtol(arguments[12],NULL,10);
@@ -848,7 +922,7 @@ int main(int argumentsNumber, char **arguments) {
                     multimerN=strtol(arguments[13],NULL,10);
                 } else correctNumberOfArguments=0; break;
             case 4: //ustaw JOBID, tryb loadowany #2 od zadanego numeru punktu (0->startArg) w odpowiednim folderze i trybie
-                if (argumentsNumber==14) {
+                if (argumentsNumber==15) {
                     if (useFileToIterate) if(createIterationTable()) return 0;
                     strncat(JOBID,arguments[2],50);
                     strcpy(loadedJOBID,"j-"); strncat(loadedJOBID,arguments[3],50);
@@ -863,6 +937,7 @@ int main(int argumentsNumber, char **arguments) {
                     useSpecificDirectory=strtol(arguments[11],NULL,10);
                     skipFirstIteration=strtol(arguments[12],NULL,10);
                     multimerN=strtol(arguments[13],NULL,10);
+                    generatorStartPoint=strtol(arguments[14],NULL,10);
                 } else correctNumberOfArguments=0; break;
             case 5: //ustaw JOBID, zrob tryb ONLYMATH, gdzie argument wskazuje ile poczatkowych linii Results ma byc pominietych
                 if (argumentsNumber==13) {
@@ -893,7 +968,7 @@ int main(int argumentsNumber, char **arguments) {
             printf("If type of run is '1', next arguments: $JOBID, startMinPacFrac, minArg, N, gaps, multimerS, multimerD, growing, iterationsNumber, useSpecificDirectory, multimerN\n");
             printf("If type of run is '2', next arguments: $JOBID, N, gaps, multimerS, multimerD, growing, iterationsNumber, useSpecificDirectory, skipFirstIteration, pointNumber, generatorStartPoint, multimerN\n");
             printf("If type of run is '3', next arguments: $JOBID, JOBID of configuration to load, N, gaps, multimerS, multimerD, growing, loadedArg, iterationsNumber, useSpecificDirectory, skipFirstIteration, multimerN\n");
-            printf("If type of run is '4', next arguments: $JOBID, JOBID of configuration to load, N, gaps, multimerS, multimerD, growing, pointNumber, iterationsNumber, useSpecificDirectory, skipFirstIteration, multimerN\n");
+            printf("If type of run is '4', next arguments: $JOBID, JOBID of configuration to load, N, gaps, multimerS, multimerD, growing, pointNumber, iterationsNumber, useSpecificDirectory, skipFirstIteration, multimerN, generatorStartPoint\n");
             printf("If type of run is '5', next arguments: $JOBID, lines to skip from Results, N, gaps, multimerS, multimerD, growing, pointNumber, iterationsNumber, useSpecificDirectory, multimerN\n");
             return 0;
         }
@@ -912,27 +987,81 @@ int main(int argumentsNumber, char **arguments) {
         startArg[0]=growing?minArg:maxArg;
         startArg[1]=0;
     }
-    pressureRealOfNotFluid/=(multimerS*multimerS);
+
+    //pressureRealOfNotFluid - dostosowanie do anisotropii, tutaj używane jako graniczne v* (w przypadku używania jako p* należy pamiętać o komendzie <<pressureRealOfNotFluid/=(multimerS*multimerS)>>)
+    switch (multimerN) {
+        case 3: switch ((int)round(multimerD/multimerS*100000)) {
+            case 50001: pressureRealOfNotFluid=1.75; break; //0.50001
+            case 51000: pressureRealOfNotFluid=1.50; break; //0.51
+            case 55000: pressureRealOfNotFluid=1.36; break; //0.55
+            case 60000: pressureRealOfNotFluid=1.31; break; //0.6
+            case 66667: pressureRealOfNotFluid=1.27; break; //0.(6)
+            case 80000: pressureRealOfNotFluid=1.23; break; //0.8
+            case 100000: pressureRealOfNotFluid=1.19; break; //1
+            case 120000: pressureRealOfNotFluid=1.16; break; //1.2
+            case 150000: pressureRealOfNotFluid=1.25; break; //1.5
+            case 200000: pressureRealOfNotFluid=1.25; break; //2
+            case 300000: pressureRealOfNotFluid=1.24; break; //3
+            case 500000: pressureRealOfNotFluid=1.24; break; //5
+            case 140000: pressureRealOfNotFluid=1.25; break; //1.4
+            case 135000: pressureRealOfNotFluid=1.25; break; //1.35
+            case 130000: pressureRealOfNotFluid=1.25; break; //1.3
+            case 96000: pressureRealOfNotFluid=1.19; break; //0.96
+            case 92000: pressureRealOfNotFluid=1.19; break; //0.92
+            case 88000: pressureRealOfNotFluid=1.19; break; //0.88
+            case 84000: pressureRealOfNotFluid=1.19; break; //0.84
+        } break;
+    }
+
     deltaR=maxDeltaR*multimerS; deltaV*=multimerS;
     for (int i=0;i<pointNumber;i++) getNextArgument(startArg,false);
     if (loadedConfiguration && loadType) loadedArg=startArg[0];
     activeN=N-gaps;
 
-    if (N%56!=0 && N%780!=0 && floor(sqrt(N))!=sqrt(N)) {
+    if (N%56!=0 && N%780!=0 && fabs(sqrt(N)-floor(sqrt(N)))>0.000001) {
         printf("ERROR: Not supported N: %d.\n",N);
         return 0;
     }
 
     //stale wynikajace z zadanych parametrow multimerow
     L=multimerS/multimerD;
-    C=pi/(double)multimerN; deltaPhi=deltaR*2.0*sin(C);
+    C=pi/(double)multimerN; deltaPhi=deltaR*2.0*sin(C)/multimerS;
     ROkreguOpisanego=multimerS/(2.0*sin(C));
     absoluteMinimum=atan(L/(2.0*L/tan(C)+sqrt(4.0-L*L)));
     absoluteMinimum2=C-absoluteMinimum;
-    if (multimerN%2==0) minDistance=getMinimalDistanceAnalyticalMethodForEvenHCM(absoluteMinimum,absoluteMinimum);
-    else minDistance=getMinimalDistanceAnalyticalMethodForOddHCM(absoluteMinimum,absoluteMinimum-C);
+    switch (multimerN) {
+        case 6: switch ((int)(multimerD*1000000)) {
+            case 500001: minDistance=1.8037364284584916; break;
+            case 501000: minDistance=1.8331940077554698; break;
+            case 502000: minDistance=1.845827233464671; break;
+            case 503000: minDistance=1.8555403664338204; break;
+            case 504000: minDistance=1.8637442860393154; break;
+            case 505000: minDistance=1.8709851905229433; break;
+            case 506000: minDistance=1.8775430588681767; break;
+            case 507000: minDistance=1.8835841266820283; break;
+            case 508000: minDistance=1.8892166507639028; break;
+            case 509000: minDistance=1.8945157885020365; break;
+            case 510000: minDistance=1.899536233850406; break;
+            case 511000: minDistance=1.9043192554184105; break;
+            case 512000: minDistance=1.9088968985500718; break;
+            case 513000: minDistance=1.913294634275949; break;
+            case 514000: minDistance=1.9175331038931438; break;
+            case 515000: minDistance=1.9216293101072457; break;
+            case 516000: minDistance=1.9255974552691306; break;
+            case 517000: minDistance=1.9294495466426982; break;
+            case 518000: minDistance=1.9331958432559069; break;
+            case 519000: minDistance=1.9368451922349774; break;
+            case 520000: minDistance=1.9404052862930774; break;
+            default: minDistance=getMinimalDistanceAnalyticalMethodForEvenHCM(absoluteMinimum,absoluteMinimum); break;
+        } break;
+        default: if (multimerN%2==0) minDistance=getMinimalDistanceAnalyticalMethodForEvenHCM(absoluteMinimum,absoluteMinimum);
+                 else minDistance=getMinimalDistanceAnalyticalMethodForOddHCM(absoluteMinimum,absoluteMinimum-C); break;
+    }
+    //minDistance=0.5*multimerS*sqrt(3)+sqrt(multimerD*multimerD-multimerS*multimerS*0.25);  //central interaction from KVT PhD 1/1
     maxDistance=ROkreguOpisanego*2+multimerD;
-    neighRadius=neighRadiusMod*maxDistance; neighRadius2=neighRadius*neighRadius; neighSafeDistance=neighRadius-maxDistance;
+
+    /*printf("minDistance (n=%d, d=%.6f): %.17f\n",multimerN,multimerD,minDistance);    //testy porównawcze z Mathematicą (7 semestr.../1 Najszybsza metoda obliczania potencjału 2 multimerów/analityczna.nb). UWAGA: w przypadku rozbieżności, sprawdzić też absoluteMinimum! (bo z niego liczony jest absoluteMinimum2, który wykorzystywany jest przez moją metodę)
+    return 0;*/
 
     //nazwy folderow na podstawie parametrow programu
     sprintf(bufferG,"%d",growing); sprintf(bufferN,"%d",N); sprintf(bufferGaps,"%d",gaps);
@@ -955,7 +1084,7 @@ int main(int argumentsNumber, char **arguments) {
     addAppendix(resultsFileName,JOBID,false);
     addAppendix(excelResultsFileName,JOBID,false);
     addAppendix(configurationsFileName,JOBID,true);
-    addAppendix(loadConfigurationsFileName,loadedJOBID,true); strncat(loadConfigurationsFileName,"_arg-",6); sprintf(buffer,"%.3f",loadedArg); strncat(loadConfigurationsFileName,buffer,100); strncat(loadConfigurationsFileName,".txt",5);
+    addAppendix(loadConfigurationsFileName,loadedJOBID,true); strncat(loadConfigurationsFileName,"_arg-",6); sprintf(buffer,"%.4E",loadedArg); strncat(loadConfigurationsFileName,buffer,100); strncat(loadConfigurationsFileName,".txt",5);
     addAppendix(orientationsFileName,JOBID,true);
     if (OCFMode) addAppendix(orientatCorrelFunFileName,JOBID,true);
     addAppendix(orientationsResultsFileName,JOBID,true);
@@ -967,14 +1096,14 @@ int main(int argumentsNumber, char **arguments) {
     FILE *fileResults, *fileExcelResults, *fileConfigurations, *fileSavedConfigurations, *fileOrientations, *fileOrientatCorrelFun, *fileConfigurationsList, *fileAllResults, *fileAllOrientations, *fileOrientationsResults, *fileAllOrientationsResults;
     fileResults = fopen(resultsFileName,"rt"); if (fileResults==NULL) {
         fileResults = fopen(resultsFileName,"a");
-        if (saveConfigurations) fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tS1112\tdS1112\tS1222\tdS1222\tavNu\tdAvNu\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\tPhiOfODFMax_All\tavPhi_All\tdPhiCyclesInterval\tavAbsDPhi\n");
-        else fprintf(fileResults,"Cycles\tPressureReduced\tVolume\tBoxMatrix[0][0]\tBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tRho\tV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tS1112\tdS1112\tS1222\tdS1222\tavNu\tdAvNu\tavB\tdAvB\tavMy\tdAvMy\tavE\tdAvE\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\tPhiOfODFMax_All\tavPhi_All\n");
+        if (saveConfigurations) fprintf(fileResults,"Cycles\tPressure*\tVolume\tdVolume\tBoxMatrix[0][0]\tdBoxMatrix[0][0]\tBoxMatrix[1][1]\tdBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tdBoxMatrix[1][0]([0][1])\tRho\tdRho\tV/V_cp\tdV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tS1112\tdS1112\tS1222\tdS1222\tavNu\tdAvNu\tavNu2\tdAvNu2\tavB*\tdAvB*\tavMy*\tdAvMy*\tavE*\tdAvE*\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\tPhiOfODFMax_All\tavPhi_All\tdPhiCyclesInterval\tavAbsDPhi\n");
+        else fprintf(fileResults,"Cycles\tPressure*\tVolume\tdVolume\tBoxMatrix[0][0]\tdBoxMatrix[0][0]\tBoxMatrix[1][1]\tdBoxMatrix[1][1]\tBoxMatrix[1][0]([0][1])\tdBoxMatrix[1][0]([0][1])\tRho\tdRho\tV/V_cp\tdV/V_cp\tS1111\tdS1111\tS1122\tdS1122\tS1212\tdS1212\tS2222\tdS2222\tS1112\tdS1112\tS1222\tdS1222\tavNu\tdAvNu\tavNu2\tdAvNu2\tavB*\tdAvB*\tavMy*\tdAvMy*\tavE*\tdAvE*\tODFMax_One\t<cos(6Phi)>_One\tODFMax_All\t<cos(6Phi)>_All\tPhiOfODFMax_All\tavPhi_All\n");
         fclose(fileResults);
     }
     fileExcelResults = fopen(excelResultsFileName,"rt"); if (fileExcelResults==NULL) {
         fileExcelResults = fopen(excelResultsFileName,"a");
-        if (saveConfigurations) fprintf(fileExcelResults,"PressureReduced\tV/V_cp\tavNu\tODFMax_All\t<cos(6Phi)>_All\tPhiOfODFMax_All\tavPhi_All\tavB\tavMy\tavE\tdPhiCyclesInterval\tavAbsDPhi\n");
-        else fprintf(fileExcelResults,"PressureReduced\tV/V_cp\tavNu\tODFMax_All\t<cos(6Phi)>_All\tPhiOfODFMax_All\tavPhi_All\tavB\tavMy\tavE\n");
+        if (saveConfigurations) fprintf(fileExcelResults,"Pressure*\tV/V_cp\tavNu\tavNu2\tODFMax_All\t<cos(6Phi)>_All\tPhiOfODFMax_All\tavPhi_All\tavB*\tavMy*\tavE*\tdPhiCyclesInterval\tavAbsDPhi\n");
+        else fprintf(fileExcelResults,"Pressure*\tV/V_cp\tavNu\tavNu2\tODFMax_All\t<cos(6Phi)>_All\tPhiOfODFMax_All\tavPhi_All\tavB*\tavMy*\tavE*\n");
         fclose(fileExcelResults);
     }
 
@@ -985,24 +1114,24 @@ int main(int argumentsNumber, char **arguments) {
 
     double arg[2]={startArg[0],startArg[1]}, oldBoxMatrix[2][2];
     while (growing>=0) {
-        double pressureReduced=arg[0], pressureReal=pressureReduced/multimerS/multimerS, //pressureReduced=\tau*\sigma^2/(kT), kT=1
-               boxMatrix[2][2],matrixOfParticlesSize[2],unitCellAtCP[2],
+        double pressureReduced=arg[0], pressure=pressureReduced/multimerS/multimerS, //pressureReduced=\tau*\sigma^2/kT, kT=1[hard] - Dwa punkty widzenia: 1) zmniejszenie sigma ZWIĘKSZA JEDNOSTKE p^*, zatem ten sam STAN FIZYCZNY jak przy sigma=1 bedzie przy mniejszym p^*. pReal to tak naprawde pReducedAdjusted. Inny, równoważny punkt widzenia, to 2) pReal redukuje objetosc, ktora NIE jest wyrazana w jednostkach sigma. Objetosc jest obliczana z boxMatrix, ktory jest inicjowany z czynnikiem *sigma, zatem MA jednostkę, a NIE jest zredukowany. Przeciez gdyby sigma=2, to boxMatrix bylby 2x wiekszy, a 'w jednostkach sigma' (zredukowany) powinien pozostac identyczny
+               boxMatrix[2][2],matrixOfParticlesSize[2],unitCellAtCP[2],                                                                //obydwa sprowadzają się do tego, że przy liczeniu prawdopodobieństwa ma być jednostka zredukowana (bezwymiarowa): 1) zakłada, że volume jest zredukowane, więc dostosowuje pReduced do stanu fizycznego; 2) zakłada, że pReduced już jest OK (w końcu jest zredukowane), tylko po prostu objętość NIE jest zredukowana, i trzeba ją zredukować dzieląc przez sigma^2
                matrixCellXY[6][6][2],matrixCellPhi[6][6];
         int n[2]; //n[X/Y], matrixCell[n[XMax]][n[YMax]][x/y], zatem: n[X/Y](max)=6
         switch (multimerN) {
-            /*case 6: {//dla heksamerow o dowolnym d/\sigma
+            case 6: {//dla heksamerow o dowolnym d/\sigma
                 unitCellAtCP[0]=minDistance; unitCellAtCP[1]=sqrt(3)*minDistance;
                 n[0]=1; n[1]=2;
                 matrixCellXY[0][0][0]=0; matrixCellXY[0][0][1]=0; matrixCellPhi[0][0]=absoluteMinimum2;
                 matrixCellXY[0][1][0]=unitCellAtCP[0]/2.0; matrixCellXY[0][1][1]=unitCellAtCP[1]/2.0; matrixCellPhi[0][1]=absoluteMinimum2;
-            } break;*/
+            } break;
             case 5: {//dla pentamerow o d/\sigma=1
                 unitCellAtCP[0]=2.4048671732*multimerS; unitCellAtCP[1]=4.2360679772*multimerS;
                 n[0]=1; n[1]=2;
                 matrixCellXY[0][0][0]=0; matrixCellXY[0][0][1]=0; matrixCellPhi[0][0]=C;
                 matrixCellXY[0][1][0]=1.0131106571*multimerS; matrixCellXY[0][1][1]=unitCellAtCP[1]/2.0; matrixCellPhi[0][1]=0;
             } break;
-            case 7: switch (initMode) {//dla heptamerow o d/\sigma=1, struktury jak w WojTreKow2003PRE
+            /*case 7: switch (initMode) {//dla heptamerow o d/\sigma=1, struktury jak w WojTreKow2003PRE
                 case 0: {//struktura A
                     unitCellAtCP[0]=3.0566685376*multimerS; unitCellAtCP[1]=5.5150210832*multimerS;
                     n[0]=1; n[1]=2;
@@ -1022,6 +1151,27 @@ int main(int argumentsNumber, char **arguments) {
                     matrixCellXY[1][0][0]=unitCellAtCP[0]/2.0; matrixCellXY[1][0][1]=0.1230590461*multimerS; matrixCellPhi[1][0]=0.1644029030;
                     matrixCellXY[0][1][0]=1.2832327269*multimerS; matrixCellXY[0][1][1]=unitCellAtCP[1]/2.0; matrixCellPhi[0][1]=-0.2843960475;
                     matrixCellXY[1][1][0]=4.2986859225*multimerS; matrixCellXY[1][1][1]=2.8916286250*multimerS; matrixCellPhi[1][1]=0.2843960475;
+                } break;
+            } break;*/
+            case 3: switch (initMode) {//struktury trimerow jak z pracy KVT
+                case 0: {//struktura INC (Isotropic Nonchiral Crystal)
+                    unitCellAtCP[0]=0.5*multimerS*sqrt(3)+sqrt(multimerD*multimerD-multimerS*multimerS*0.25); unitCellAtCP[1]=unitCellAtCP[0]*sqrt(3);
+                    n[0]=1; n[1]=2;
+                    matrixCellXY[0][0][0]=0; matrixCellXY[0][0][1]=0; matrixCellPhi[0][0]=C;
+                    matrixCellXY[0][1][0]=unitCellAtCP[0]/2.0; matrixCellXY[0][1][1]=unitCellAtCP[1]/2.0; matrixCellPhi[0][1]=C;
+                } break;
+                case 1: {//struktura R2 (Rectangular Crystal with 2 molecules in the unit cell)
+                    unitCellAtCP[0]=0.5*multimerS*sqrt(3)+sqrt(multimerD*multimerD-multimerS*multimerS*0.25); unitCellAtCP[1]=2.0*cos(C/2.0-absoluteMinimum2)*minDistance;
+                    n[0]=1; n[1]=2;
+                    matrixCellXY[0][0][0]=0; matrixCellXY[0][0][1]=0; matrixCellPhi[0][0]=0;
+                    matrixCellXY[0][1][0]=-sin(C/2.0-absoluteMinimum2)*minDistance; matrixCellXY[0][1][1]=unitCellAtCP[1]/2.0; matrixCellPhi[0][1]=C;
+                } break;
+            } break;
+            case 4: switch (initMode) {
+                case 0: {//struktura kwadratowa skrecona
+                    unitCellAtCP[0]=minDistance; unitCellAtCP[1]=minDistance;
+                    n[0]=1; n[1]=1;
+                    matrixCellXY[0][0][0]=0; matrixCellXY[0][0][1]=0; matrixCellPhi[0][0]=absoluteMinimum2;
                 } break;
             } break;
             /*case 95: switch (initMode) {
@@ -1138,14 +1288,15 @@ int main(int argumentsNumber, char **arguments) {
             boxMatrix[1][0]=0.0; boxMatrix[0][1]=0.0;
         } else for (int i=0;i<2;i++) for (int j=0;j<2;j++) boxMatrix[i][j]=oldBoxMatrix[i][j];
         detBoxMatrix=boxMatrix[0][0]*boxMatrix[1][1]-boxMatrix[1][0]*boxMatrix[0][1];
-        double volume=fabs(detBoxMatrix), rho=N/volume, pacFrac=1.0/VcpPerParticle/rho;
+        double volume=fabs(detBoxMatrix), rho=N/volume, pacFrac=1.0/VcpPerParticle/rho, xAxisPhi=atan(boxMatrix[0][1]/boxMatrix[0][0]);
 
         if (!onlyMath[0]) {
             if (arg[0]==startArg[0] && !loadedConfiguration) {
                 printf("INIT POS.- N: %d, gaps: %d, growing: %d, StartPressRed: %.7E (StartDen: %.7E, startPacFrac: %.7E), mN: %d, mS: %.2f, mD: %.6f\n",N,gaps,growing,startArg[0],rho,pacFrac,multimerN,multimerS,multimerD);
-                if (!initPositions(particles,boxMatrix,matrixOfParticlesSize,n,matrixCellXY,matrixCellPhi,pacFrac)) return 0;
-                adjustAngles(particles,boxMatrix);
-                updateNeighbourList(particles,boxMatrix); //matrix(comment) 12/16
+                if (!initPositions(particles,boxMatrix,matrixOfParticlesSize,n,matrixCellXY,matrixCellPhi,pacFrac,volume)) return 0;
+                adjustAngles(particles,boxMatrix);   //dla układów, w których obracanie cząstek pomaga uzyskać initowy układ (np. HCH)
+                //adjustOddRowsTranslation(particles,boxMatrix,(int)(matrixOfParticlesSize[0]*NLinearMod));   //dla układów, w których translacja co drugiego rzędu pomaga uzyskać initowy układ (np. HCT)
+                updateNeighbourList(particles,boxMatrix,volume); //matrix(comment) 12/15
             } else if (loadedConfiguration) {
                 char configurations[4096];
                 FILE *fileCTL = fopen(loadConfigurationsFileName,"rt");
@@ -1163,11 +1314,11 @@ int main(int argumentsNumber, char **arguments) {
                             args[dataType++]=strtod(data,NULL);
                             if (dataType==10) {
                                 boxMatrix[0][0]=args[5]; boxMatrix[1][1]=args[6]; boxMatrix[1][0]=args[7]; boxMatrix[0][1]=args[7];
-                                deltaR=args[8]; deltaPhi=deltaR*2.0*sin(C); deltaV=args[9];
-                                arg[0]=args[3]; pressureReduced=arg[0];
+                                deltaR=args[8]; deltaPhi=deltaR*2.0*sin(C)/multimerS; deltaV=args[9];
+                                arg[0]=args[3]; pressureReduced=arg[0]; pressure=pressureReduced/multimerS/multimerS;
 
                                 detBoxMatrix=boxMatrix[0][0]*boxMatrix[1][1]-boxMatrix[1][0]*boxMatrix[0][1];
-                                volume=fabs(detBoxMatrix); rho=N/volume; pacFrac=1.0/VcpPerParticle/rho;
+                                volume=fabs(detBoxMatrix); rho=N/volume; pacFrac=1.0/VcpPerParticle/rho; xAxisPhi=atan(boxMatrix[0][1]/boxMatrix[0][0]);
                             }
                             actIndex=0;
                             continue;
@@ -1196,7 +1347,12 @@ int main(int argumentsNumber, char **arguments) {
                 printf("LOADING POS.- N: %d, gaps: %d, growing: %d, StartPressRed: %.7E (startDen: %.7E, startPacFrac: %.7E), RandStart: %.1f, RandStep: %.1f, Cycles: %ld, DeltaR: %.4E, DeltaV: %.4E\n",N,gaps,growing,args[3],args[2],pacFrac,args[0],args[1],(long)args[4],args[8],args[9]);
                 //for (int i=0;i<2;i++) for (int j=0;j<2;j++) printf("boxMatrix[%d][%d]=%.17E\n",i,j,boxMatrix[i][j]);
                 //for (int i=0;i<activeN;i++) printf("%d: %.17E,  %.17E,  %.17E\n",i,particles[i].r[0],particles[i].r[1],particles[i].phi);return 0;
-                updateNeighbourList(particles,boxMatrix); //matrix(comment) 13/16
+                updateNeighbourList(particles,boxMatrix,volume); //matrix(comment) 13/15
+                printf("Checking overlaps in loaded file... "); fflush(stdout);
+                if (getEnergyAll(particles,boxMatrix)==1) {
+                    printf("Configuration from loaded file contains overlap(s) [energy=1].\n");
+                    return 0;
+                } else  {printf("done\n"); fflush(stdout);}
             }
         }
 
@@ -1211,8 +1367,13 @@ int main(int argumentsNumber, char **arguments) {
                         InitMT((unsigned int)args[0]);
                         randomStartStep[0]=args[0];
                     } else {
-                        randomStartStep[0]=InitRandomMT();
                         printf("Setting start position of p-random number generator to position from file - DISABLED\n");
+                        if (generatorStartPoint==0) {
+                            generatorStartPoint=time(0);
+                            printf("Setting start position of p-random number generator to actual CPU time...\n");
+                        } else printf("Setting start position of p-random number generator to %ld...\n",generatorStartPoint);
+                        InitMT((unsigned int)generatorStartPoint);
+                        randomStartStep[0]=generatorStartPoint;
                     }
                     randomStartStep[1]=0;
                     if (loadedSetGenerator) {
@@ -1230,6 +1391,7 @@ int main(int argumentsNumber, char **arguments) {
                 }
                 printf("Start of equilibration at reduced pressure: %.7E (startDen: %.7E, startPacFrac: %.7E)... (%ld cycles)\n",pressureReduced,rho,pacFrac,cyclesOfEquilibration);
             } else printf("Start of mathOnly mode for: N: %d, gaps: %d, growing: %d, pressRed: %.7E, mN: %d, mS: %.2f, mD: %.6f\n",N,gaps,growing,pressureReduced,multimerN,multimerS,multimerD);
+            fflush(stdout);
 
 
 
@@ -1242,17 +1404,18 @@ int main(int argumentsNumber, char **arguments) {
                 attemptedNumberR=0, displacedNumberR=0,
                 attemptedNumberV=0, displacedNumberV=0,
                 cyclesOfMeasurementBuffer=arg[1]==0?cyclesOfMeasurement:0;
-            double nStep=fullCycle*((double)cyclesOfEquilibration+(double)cyclesOfMeasurementBuffer+10.0),
-                   possibleDistance=0; //matrix(comment) 14/16
+            double deltaRTable[100], deltaRMean=deltaR, deltaVTable[100], deltaVMean=deltaV;
+            for (int i=0;i<100;i++) {deltaRTable[i]=deltaRMean; deltaVTable[i]=deltaVMean;}
+            int simulationStage=cyclesOfEquilibration>0?0:cyclesOfMeasurementBuffer>0?1:2;  //0-equilibration, 1-measurement, 2-end
             int volumeMove=0, cycleCounter=0, indexScanned=(matrixOfParticlesSize[0]*round(matrixOfParticlesSize[1]*NLinearMod/2.0)-round(matrixOfParticlesSize[0]/2.0))*NLinearMod;
-            //assignParticlesToCells(particles,boxMatrix); //matrix 15/16
+            //assignParticlesToCells(particles,boxMatrix); //matrix 14/15
 
             char allResultsFileName[200],bufferConfigurations[200],bufferSavedConfigurations[200],bufferOrientations[200],bufferOrientatCorrelFun[200],allOrientationsFileName[200],bufferOrientationsResults[200],allOrientationsResultsFileName[200],bufferPressure[100];
             strcpy(allResultsFileName,configurationsFileName); strcpy(bufferConfigurations,configurationsFileName);
             strcpy(bufferOrientations,orientationsFileName); strcpy(allOrientationsFileName,orientationsFileName);
             if (OCFMode) strcpy(bufferOrientatCorrelFun,orientatCorrelFunFileName);
             strcpy(bufferOrientationsResults,orientationsResultsFileName); strcpy(allOrientationsResultsFileName,orientationsResultsFileName);
-            sprintf(bufferPressure,"%.3f",pressureReduced);
+            sprintf(bufferPressure,"%.4E",pressureReduced);
             strncat(allResultsFileName,"_arg-",6); strncat(allResultsFileName,bufferPressure,100); strncat(allResultsFileName,"_Results.txt",13);
             strncat(bufferConfigurations,"_arg-",6); strncat(bufferConfigurations,bufferPressure,100); strcpy(bufferSavedConfigurations,bufferConfigurations); strncat(bufferConfigurations,".txt",5); strncat(bufferSavedConfigurations,"_transient.txt",15);
             strncat(bufferOrientations,"_arg-",6); strncat(bufferOrientations,bufferPressure,100); strncat(bufferOrientations,".txt",5);
@@ -1272,15 +1435,15 @@ int main(int argumentsNumber, char **arguments) {
                 adjustOrientationsFile(fileOrientatCorrelFun=fopen(bufferOrientatCorrelFun,"rt"),bufferOrientatCorrelFun);
                 fileOrientatCorrelFun = fopen(bufferOrientatCorrelFun,"a");
             }
-            if (onlyMath[0]) nStep=0;
+            if (onlyMath[0]) simulationStage=2;
 
             timeStart=time(0);
-            for (double iStep=1;iStep<nStep;iStep++) {
+            while (simulationStage<2) {
                 int randIndex;
                 if (volumeMove) {
-                    randIndex = (int)(MTGenerate(randomStartStep)%1000000/1000000.0*activeN);
+                    randIndex = (int)(MTRandom0to1(randomStartStep)*activeN);
                     volumeMove=0;
-                } else randIndex = (int)(MTGenerate(randomStartStep)%1000000/1000000.0*fullCycle);
+                } else randIndex = (int)(MTRandom0to1(randomStartStep)*fullCycle);
                 if (randIndex<activeN) {
                     attemptedNumberR++;
                     if (attemptToDisplaceAParticle(particles,randIndex,boxMatrix))
@@ -1288,7 +1451,7 @@ int main(int argumentsNumber, char **arguments) {
                 } else {
                     volumeMove=1;
                     attemptedNumberV++;
-                    if (attemptToChangeVolume(particles,pressureReal,boxMatrix,&volume))
+                    if (attemptToChangeVolume(particles,pressure,boxMatrix,volume,xAxisPhi))
                         displacedNumberV++;
                 }
 
@@ -1298,41 +1461,37 @@ int main(int argumentsNumber, char **arguments) {
                     cycle++;
 
                     if (cycle%intervalSampling==0) {
+                        if (simulationStage==0 && cycle>cyclesOfEquilibration) {
+                            simulationStage=1;
+                            printf("Equilibration finished after: %ld cycles (%ldsec).\n",cyclesOfEquilibration,time(0)-timeStart);
+                            fflush(stdout);
+                        }
                         double acceptanceRatioR = displacedNumberR/(double)attemptedNumberR,
                                acceptanceRatioV = displacedNumberV/(double)attemptedNumberV;
-                        /*possibleDistance+=sqrt(0.5*deltaR*deltaR)*((double)intervalSampling)*acceptanceRatioR*5.0;  //ostatnie *5.0 - dla bezpieczenstwa; sqrt(0.5*deltaR*0.5*deltaR+0.5*deltaR*0.5*deltaR)=sqrt(0.5*deltaR*deltaR)
-                        if (possibleDistance>=neighSafeDistance) {
-                            updateNeighbourList(particles,boxMatrix);
-                            possibleDistance=0;
-                        }*/  //matrix(comment) 16/16
+                        if (cycle%neighUpdatingFrequency==0) updateNeighbourList(particles,boxMatrix,volume);  //matrix(comment) 15/15
 
                         /////wypisywanie danych czesciej niz normalnie i PRZED zrownowagowaniem
                         /*if (cycle%50==0) {
                             int collidingPairs=0;
                             if (countCollidingPairs) {
                                 for (int i=0;i<activeN-1;i++) for (int j=i+1;j<activeN;j++) {
-                                    double normalizedRX=particles[i].normR[0]-particles[j].normR[0],
-                                           normalizedRY=particles[i].normR[1]-particles[j].normR[1],
-                                           rx=particles[i].r[0]-particles[j].r[0],
-                                           ry=particles[i].r[1]-particles[j].r[1];
-                                    rx-=round(normalizedRX)*boxMatrix[0][0]+round(normalizedRY)*boxMatrix[0][1];
-                                    ry-=round(normalizedRX)*boxMatrix[1][0]+round(normalizedRY)*boxMatrix[1][1];
-                                    double r2=rx*rx+ry*ry, dr=sqrt(r2);
+                                    getParticlesDistanceSquared(particles[i],particles[j],boxMatrix);
+                                    double drRoot=sqrt(dr[2]);
                                     int energy;
-                                    if (dr<maxDistance) {
-                                        if (dr<minDistance) energy=1;
+                                    if (drRoot<maxDistance) {
+                                        if (drRoot<minDistance) energy=1;
                                         else {
-                                            double gamma=atan(ry/rx),
+                                            double gamma=atan(dr[1]/dr[0]),
                                                     aAngle=particles[j].phi-gamma,
                                                     bAngle=particles[i].phi-gamma;
                                             if (multimerN%2!=0) {
-                                                if (rx>0) bAngle-=C;
+                                                if (dr[0]>0) bAngle-=C;
                                                 else aAngle-=C;
                                             }
                                             aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle);
-                                            energy=checkOverlaps(dr,aAngle,bAngle);
-                                            //energy=checkOverlapsAnalyticalMethodHCM(dr,aAngle,bAngle);
-                                            if (energy==1) printf("colliding: distance- %.12E, alpha: %.12E, beta: %.12E, analytic: %.12E, i: %d, j: %d\n",dr,aAngle,bAngle,getMinimalDistanceAnalyticalMethodForEvenHCM(normalizeAngle(aAngle+C),normalizeAngle(bAngle+C)),i,j);
+                                            energy=checkOverlaps(drRoot,aAngle,bAngle);
+                                            //energy=checkOverlapsAnalyticalMethodHCM(drRoot,aAngle,bAngle);
+                                            if (energy==1) printf("colliding: distance- %.12E, alpha: %.12E, beta: %.12E, analytic: %.12E, i: %d, j: %d\n",drRoot,aAngle,bAngle,getMinimalDistanceAnalyticalMethodForEvenHCM(normalizeAngle(aAngle+C),normalizeAngle(bAngle+C)),i,j);
                                         }
                                         if (energy==1) collidingPairs++;
                                     }
@@ -1340,42 +1499,54 @@ int main(int argumentsNumber, char **arguments) {
                             }
 
                             rho=N/volume; pacFrac=1.0/VcpPerParticle/rho;
-                            if (countCollidingPairs) printf("Cycle: %ld, CollPairs: %d\n",(cycle+arg5),collidingPairs);
-                            else printf("Cycle: %ld\n",(cycle+arg5));
+                            if (countCollidingPairs) printf("Cycle: %ld, CollPairs: %d\n",(cycle+(long)args[4]),collidingPairs);
+                            else printf("Cycle: %ld\n",(cycle+(long)args[4]));
                             printf("   AccRatR: %.4E, dR: %.4E, AccRatV: %.4E, dV: %.4E\n",acceptanceRatioR,deltaR,acceptanceRatioV,deltaV);
                             printf("   Dens: %.4E, V/V_cp: %.4E, PressRed: %.4E\n",rho,pacFrac,pressureReduced);
                             printf("   box00: %.8E, box11: %.8E, box01(10): %.8E\n",boxMatrix[0][0],boxMatrix[1][1],boxMatrix[0][1]);
+                            fflush(stdout);
                         }*/
                         /////
 
-                        if (cycle>cyclesOfEquilibration) {
-                            if (timeEquilibration==0) timeEquilibration=time(0);
+                        if (simulationStage==1) {
+                            if (timeEquilibration==0) {
+                                timeEquilibration=time(0);
+
+                                printf("Checking overlaps in equilibrated configuration... "); fflush(stdout);
+                                if (getEnergyAll(particles,boxMatrix)==1) {
+                                    printf("Equilibrated configuration contains overlap(s) [energy=1]. ");
+                                    char allResultsErrorFileName[200];
+                                    strcpy(allResultsErrorFileName,allResultsFileName); strncat(allResultsErrorFileName,".err",5);
+                                    if (rename(allResultsFileName,allResultsErrorFileName)==0) printf("Results file successfully renamed (.err).\n");
+                                    else printf("Error renaming results file (.err).\n");
+                                    return 0;
+                                } else  {printf("done\n"); fflush(stdout);}
+                            }
 
                             int collidingPairs=0;
                             if (countCollidingPairs) {
                                 for (int i=0;i<activeN-1;i++) for (int j=i+1;j<activeN;j++) {
-                                    double normalizedRX=particles[i].normR[0]-particles[j].normR[0],
-                                           normalizedRY=particles[i].normR[1]-particles[j].normR[1],
-                                           rx=particles[i].r[0]-particles[j].r[0],
-                                           ry=particles[i].r[1]-particles[j].r[1];
-                                    rx-=round(normalizedRX)*boxMatrix[0][0]+round(normalizedRY)*boxMatrix[0][1];
-                                    ry-=round(normalizedRX)*boxMatrix[1][0]+round(normalizedRY)*boxMatrix[1][1];
-                                    double r2=rx*rx+ry*ry, dr=sqrt(r2);
+                                    getParticlesDistanceSquared(&particles[i],&particles[j],boxMatrix);
+                                    double drRoot=sqrt(dr[2]);
                                     int energy;
-                                    if (dr<maxDistance) {
-                                        if (dr<minDistance) energy=1;  //analyticCheck 1/3
-                                        else {                         //
-                                            double gamma=atan(ry/rx),
-                                                    aAngle=particles[j].phi-gamma,
-                                                    bAngle=particles[i].phi-gamma;
+                                    if (drRoot<maxDistance) {
+                                        if (drRoot<minDistance) energy=1;   //analyticCheck 1/4
+                                        else {                              //
+                                            double gamma=atan(dr[1]/dr[0]),
+                                                   aAngle=particles[j].phi-gamma,
+                                                   bAngle=particles[i].phi-gamma;
                                             if (multimerN%2!=0) {
-                                                if (rx>0) bAngle-=C;
-                                                else aAngle-=C;
+                                                //rozważanie, która molekuła jest 'po lewej', a która 'po prawej' (moja metoda-odwraca cząstkę po prawej; analityczna metoda-istotna kolejność)
+                                                if (dr[0]>0) bAngle-=C;     //analyticCheck 2/4
+                                                else aAngle-=C;             //
+                                                /*if (dr[0]<0) {
+                                                    double buffer=aAngle; aAngle=bAngle; bAngle=buffer;
+                                                }*/
                                             }
-                                            aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle);  //analyticCheck 2/3
-                                            energy=checkOverlaps(dr,aAngle,bAngle);                        //
-                                            //energy=checkOverlapsAnalyticalMethodHCM(dr,aAngle,bAngle);
-                                        }  //analyticCheck 3/3
+                                            aAngle=normalizeAngle(aAngle); bAngle=normalizeAngle(bAngle);   //analyticCheck 3/4
+                                            energy=checkOverlaps(drRoot,aAngle,bAngle);                     //
+                                            //energy=checkOverlapsAnalyticalMethodHCM(drRoot,aAngle,bAngle);
+                                        }  //analyticCheck 4/4
                                         if (energy==1) collidingPairs++;
                                     }
                                 }
@@ -1399,17 +1570,12 @@ int main(int argumentsNumber, char **arguments) {
                                     for (int i=0;i<activeN;i++) for (int j=0;j<particles[i].neighCounter;j++) {
                                         if (i<particles[i].neighbours[j]) {
                                             strcpy(bufferText,"");
-                                            double normalizedRX=particles[i].normR[0]-particles[particles[i].neighbours[j]].normR[0],
-                                                   normalizedRY=particles[i].normR[1]-particles[particles[i].neighbours[j]].normR[1],
-                                                   rx=particles[i].r[0]-particles[particles[i].neighbours[j]].r[0],
-                                                   ry=particles[i].r[1]-particles[particles[i].neighbours[j]].r[1];
-                                            rx-=round(normalizedRX)*boxMatrix[0][0]+round(normalizedRY)*boxMatrix[0][1];
-                                            ry-=round(normalizedRX)*boxMatrix[1][0]+round(normalizedRY)*boxMatrix[1][1];
-                                            double gamma=atan(ry/rx),
+                                            getParticlesDistanceSquared(&particles[i],&particles[particles[i].neighbours[j]],boxMatrix);
+                                            double gamma=atan(dr[1]/dr[0]),
                                                    aAngle=particles[particles[i].neighbours[j]].phi-gamma,
                                                    bAngle=particles[i].phi-gamma;
                                             if (multimerN%2!=0) {
-                                                if (rx>0) bAngle-=C;
+                                                if (dr[0]>0) bAngle-=C;
                                                 else aAngle-=C;
                                             }
                                             aAngle=normalizeAngle(aAngle+C); bAngle=normalizeAngle(bAngle+C);
@@ -1425,7 +1591,7 @@ int main(int argumentsNumber, char **arguments) {
                             }
 
                             if (saveConfigurations && cycle%savedConfigurationsInt==0) {
-                                fprintf(fileSavedConfigurations,"%ld\t%.12E\t%.12E\t%.12E\t{",(cycle+(long)args[4]),boxMatrix[0][0],boxMatrix[1][1],boxMatrix[0][1]);
+                                fprintf(fileSavedConfigurations,"%ld\t%.17E\t%.17E\t%.17E\t{",(cycle+(long)args[4]),boxMatrix[0][0],boxMatrix[1][1],boxMatrix[0][1]);
                                 int activeNMinus1=activeN-1;
                                 for (int i=0;i<activeNMinus1;i++)
                                     fprintf(fileSavedConfigurations,"m[%.17E,%.17E,%.17E],",particles[i].r[0],particles[i].r[1],particles[i].phi);
@@ -1434,11 +1600,13 @@ int main(int argumentsNumber, char **arguments) {
                             }
 
                             if (cycle%intervalOutput==0) {
-                                if (countCollidingPairs) printf("Cycle: %ld, CollPairs: %d\n",(cycle+(long)args[4]),collidingPairs);
-                                else printf("Cycle: %ld\n",(cycle+(long)args[4]));
+                                if (countCollidingPairs) printf("Cycle: %ld, CollPairs: %d, ",(cycle+(long)args[4]),collidingPairs);
+                                else printf("Cycle: %ld, ",(cycle+(long)args[4]));
+                                printf("simulation time: full-%ldsec, measurement-%ldsec\n",time(0)-timeStart,time(0)-timeEquilibration);
                                 printf("   AccRatR: %.4E, dR: %.4E, AccRatV: %.4E, dV: %.4E\n",acceptanceRatioR,deltaR,acceptanceRatioV,deltaV);
                                 printf("   Dens: %.4E, V/V_cp: %.4E, PressRed: %.4E\n",rho,pacFrac,pressureReduced);
                                 printf("   box00: %.8E, box11: %.8E, box01(10): %.8E\n",boxMatrix[0][0],boxMatrix[1][1],boxMatrix[0][1]);
+                                fflush(stdout);
 
                                 fileConfigurations = fopen(bufferConfigurations,"w");
                                 fprintf(fileConfigurations,"Rho: %.12E\tV/V_cp: %.12E\tPressureRed: %.12E\tRandStart: %.1f\tRandSteps: %.1f\tCycles: %ld\tEquilTime: %ldsec\tMeasuTime: %ldsec\n\n",rho,pacFrac,
@@ -1451,22 +1619,40 @@ int main(int argumentsNumber, char **arguments) {
                                 fprintf(fileConfigurations,"\n==========================================\n\n\nboxMatrix[0][0]=%.12E, boxMatrix[1][1]=%.12E, boxMatrix[0][1]=boxMatrix[1][0]=%.12E",boxMatrix[0][0],boxMatrix[1][1],boxMatrix[0][1]);
                                 fclose(fileConfigurations);
                             }
-                        }// else {//dostosowywanie delt w trakcie pomiaru
+                        } else {//dostosowywanie delt w trakcie pomiaru
                             if (acceptanceRatioR>desiredAcceptanceRatioR) deltaR*=1.05; else deltaR*=0.95;
-                            if (deltaR>maxDeltaR) deltaR=maxDeltaR;
-                            deltaPhi=deltaR*2.0*sin(C);
+                            if (deltaR>maxDeltaR*multimerS) deltaR=maxDeltaR*multimerS;
+                            deltaPhi=deltaR*2.0*sin(C)/multimerS;
                             if (acceptanceRatioV>desiredAcceptanceRatioV) deltaV*=1.05; else deltaV*=0.95;
-                        //}
+
+                            int sampleNumberMod100=(cycle/intervalSampling)%100;
+                            updateTableAndGetActualMean(deltaRTable,deltaRMean,sampleNumberMod100,deltaR); deltaR=deltaRMean;
+                            updateTableAndGetActualMean(deltaVTable,deltaVMean,sampleNumberMod100,deltaV); deltaV=deltaVMean;
+                        }
+                        //printf("c: %ld, v*: %.17E, rho: %.17E\n\trR: %.17E -d/aR: %ld/%ld, dR: %.17E\n\trV: %.17E -d/aV: %ld/%ld, dV: %.17E\n\tb00: %.17E, b11: %.17E, b01: %.17E\n",cycle,volume/VcpPerParticle/N,N/volume,acceptanceRatioR,displacedNumberR,attemptedNumberR,deltaR,acceptanceRatioV,displacedNumberV,attemptedNumberV,deltaV,boxMatrix[0][0],boxMatrix[1][1],boxMatrix[0][1]);
+
                         attemptedNumberR=0; displacedNumberR=0;
                         attemptedNumberV=0; displacedNumberV=0;
                     }
-                    if (cycle-cyclesOfEquilibration>=cyclesOfMeasurementBuffer) iStep=nStep;
+                    if (simulationStage==1 && cycle-cyclesOfEquilibration>=cyclesOfMeasurementBuffer) simulationStage=2;
                 }
             }
             fclose(fileAllResults);
             fclose(fileOrientations); fclose(fileAllOrientations);
             if (saveConfigurations) fclose(fileSavedConfigurations); if (OCFMode) fclose(fileOrientatCorrelFun);
             if (timeEquilibration==0) timeEquilibration=time(0);
+            printf("Checking overlaps in final configuration... "); fflush(stdout);
+            if (!onlyMath[0] && getEnergyAll(particles,boxMatrix)==1) {
+                printf("Final configuration contains overlap(s) [energy=1]. ");
+                char allResultsErrorFileName[200],configurationErrorFileName[200];
+                strcpy(allResultsErrorFileName,allResultsFileName); strncat(allResultsErrorFileName,".err",5);
+                strcpy(configurationErrorFileName,bufferConfigurations); strncat(configurationErrorFileName,".err",5);
+                if (rename(allResultsFileName,allResultsErrorFileName)==0) printf("Results file successfully renamed (.err). ");
+                else printf("Error renaming results file (.err). ");
+                if (rename(bufferConfigurations,configurationErrorFileName)==0) printf("Configuration file successfully renamed (.err).\n");
+                else printf("Error renaming configuration file (.err).\n");
+                return 0;
+            } else {printf("done\n"); fflush(stdout);}
             timeEnd=time(0);
 
 
@@ -1479,11 +1665,17 @@ int main(int argumentsNumber, char **arguments) {
             //obliczenie liczby linii danych (potrzebne do podziału na zespoły i obliczenia średnich błędów)
             printf("Calculation of data lines... "); fflush(stdout);
             fileAllResults=fopen(allResultsFileName,"rt");
-            char linia[4096]; double dataLicznik=0;
-            if (onlyMath[0]) for (int i=0;i<onlyMath[1];i++) fgets(linia,300,fileAllResults);
-            while(fgets(linia,300,fileAllResults)!=NULL) dataLicznik++;
+            char linia[4096]; double dataLicznik=0; int faultyLines=0, onlyMathLinesBuffer=onlyMath[1];
+            if (onlyMath[0]) for (int i=0;i<onlyMathLinesBuffer;i++) {
+                if (fgets(linia,300,fileAllResults)!=NULL && !isLineCorrect(linia)) onlyMathLinesBuffer++;
+            }
+            while(fgets(linia,300,fileAllResults)!=NULL) {
+                if (isLineCorrect(linia)) dataLicznik++; else faultyLines++;
+            }
             fclose(fileAllResults);
-            printf("done (found %ld data lines)\n",(long)dataLicznik);
+            printf("done (Found %ld data lines [%d faulty lines occurred].",(long)dataLicznik,faultyLines);
+            if ((long)dataLicznik%10>0) printf(" Last %ld lines won't be considered, due to calculations of averages in 10 sets.)\n",(long)dataLicznik%10); else printf(")\n");
+            dataLicznik-=(long)dataLicznik%10;
 
             //obliczenie srednich wartosci mierzonych wielkosci
             printf("Calculation of averages... "); fflush(stdout);
@@ -1493,7 +1685,7 @@ int main(int argumentsNumber, char **arguments) {
                 avRhoSet[i]=0; avPacFracSet[i]=0;
             }
             fileAllResults=fopen(allResultsFileName,"rt");
-            if (onlyMath[0]) for (int i=0;i<onlyMath[1];i++) fgets(linia,300,fileAllResults);
+            if (onlyMath[0]) for (int i=0;i<onlyMathLinesBuffer;i++) fgets(linia,300,fileAllResults);
             double lineCounter=0;
             /*while(fgets(linia,300,fileAllResults)!=NULL) {//OLD-VERSION - large files including: cycles,volume,3xBoxMatrix,rho,pacFrac  1/2
                 sscanf(linia,"%c",linia);
@@ -1524,21 +1716,23 @@ int main(int argumentsNumber, char **arguments) {
                     avBoxMatrixSet[i][j]/=dataLicznik*0.1; avBoxMatrix[j]+=avBoxMatrixSet[i][j];
                 }
             }*/
-            while(fgets(linia,300,fileAllResults)!=NULL) {//NEW-VERSION - small files including only: 3xBoxMatrix  1/2
+            while(fgets(linia,300,fileAllResults)!=NULL && lineCounter<dataLicznik) {//NEW-VERSION - small files including only: 3xBoxMatrix  1/2
                 sscanf(linia,"%c",linia);
                 int actIndex=0;
                 int dataIndex=0; double dataD[3]; while (dataIndex<3) {
                     char data[50]="";
-                    int licznik=0;
-                    while (linia[actIndex]!='\t' && licznik<50) data[licznik++]=linia[actIndex++]; if (licznik>=50) {dataIndex=10; continue;}
+                    int licznik=0, dotCounter=0;
+                    while (linia[actIndex]!='\t' && (dotCounter=linia[actIndex]=='.'?dotCounter+1:dotCounter)<=1 && licznik<50) data[licznik++]=linia[actIndex++];
+                    if (dotCounter>1 || licznik>=50) {dataIndex=10; continue;}
                     actIndex++;
-                    dataD[dataIndex++]=strtod(data,NULL);
-                }
+                    if (dataIndex<10 && ((data[0]!='-' && data[1]!='.') || (data[0]=='-' && data[2]!='.'))) dataIndex=10;
+                    else dataD[dataIndex++]=strtod(data,NULL);
+                } if (dataIndex<10 && linia[actIndex]!='\n') dataIndex=10;
                 if (dataIndex<10) {
                     int setIndex=(int)(lineCounter/dataLicznik*10.0);
                     for (int i=0;i<3;i++) avBoxMatrixSet[setIndex][i]+=dataD[i];
+                    lineCounter++;
                 }
-                lineCounter++;
             }
             fclose(fileAllResults);
             double avVolume=0, avBoxMatrix[3]={0,0,0}, avRho=0, avPacFrac=0;
@@ -1565,9 +1759,9 @@ int main(int argumentsNumber, char **arguments) {
                    HxyHyx,HxxHyy,HxxHxy,Hxx2,Hyy2,mod0,mod1;
             for (int i=0;i<10;i++) {e1111Set[i]=0; e1122Set[i]=0; e1212Set[i]=0; e2222Set[i]=0; e1112Set[i]=0; e1222Set[i]=0;}
             fileAllResults=fopen(allResultsFileName,"rt");
-            if (onlyMath[0]) for (int i=0;i<onlyMath[1];i++) fgets(linia,300,fileAllResults);
+            if (onlyMath[0]) for (int i=0;i<onlyMathLinesBuffer;i++) fgets(linia,300,fileAllResults);
             lineCounter=0; int setIndex, oldSetIndex=-1;
-            while(fgets(linia,300,fileAllResults)!=NULL) {
+            while(fgets(linia,300,fileAllResults)!=NULL && lineCounter<dataLicznik) {
                 setIndex=(int)(lineCounter/dataLicznik*10.0);
                 if (setIndex!=oldSetIndex) {
                     HxyHyx=avBoxMatrixSet[setIndex][2]*avBoxMatrixSet[setIndex][2];
@@ -1595,19 +1789,20 @@ int main(int argumentsNumber, char **arguments) {
                         case 3: h12=strtod(data,NULL);break;
                     }
                 }*/
-                double h11,h22,h12;  //NEW-VERSION - small files including only: 3xBoxMatrix  2/2
+                double h[3],h11,h22,h12;  //NEW-VERSION - small files including only: 3xBoxMatrix  2/2
                 int dataIndex=0; while (dataIndex<3) {
                     char data[50]="";
-                    int licznik=0;
-                    while (linia[actIndex]!='\t' && licznik<50) data[licznik++]=linia[actIndex++]; if (licznik>=50) {dataIndex=10; continue;}
+                    int licznik=0, dotCounter=0;
+                    while (linia[actIndex]!='\t' && (dotCounter=linia[actIndex]=='.'?dotCounter+1:dotCounter)<=1 && licznik<50) data[licznik++]=linia[actIndex++];
+                    if (dotCounter>1 || licznik>=50) {dataIndex=10; continue;}
                     actIndex++;
-                    switch (dataIndex++) {
-                        case 0: h11=strtod(data,NULL);break;
-                        case 1: h22=strtod(data,NULL);break;
-                        case 2: h12=strtod(data,NULL);break;
+                    if (dataIndex<10) {
+                        if ((data[0]!='-' && data[1]!='.') || (data[0]=='-' && data[2]!='.')) dataIndex=10;
+                        else h[dataIndex++]=strtod(data,NULL);
                     }
-                }
+                } if (dataIndex<10 && linia[actIndex]!='\n') dataIndex=10;
                 if (dataIndex<10) {
+                    h11=h[0]; h22=h[1]; h12=h[2];
                     double hxyhyx=h12*h12,
                            hxxPhyy=h11+h22,
                            hxx2=h11*h11,
@@ -1623,8 +1818,8 @@ int main(int argumentsNumber, char **arguments) {
                     e2222Set[setIndex]+=e22*e22;
                     e1112Set[setIndex]+=e11*e12;
                     e1222Set[setIndex]+=e12*e22;
+                    lineCounter++;
                 }
-                lineCounter++;
             }
             fclose(fileAllResults);
             double e1111=0, e1122=0, e1212=0, e2222=0, e1112=0, e1222=0;
@@ -1649,6 +1844,7 @@ int main(int argumentsNumber, char **arguments) {
 
             //obliczenie podatnosci, wspolczynnika Poissona i modulow sprezystosci
             printf("Calculation of compliances, Poisson's ratio and elastic moduli... "); fflush(stdout);
+            //Eijkl - bezwymiarowe [strain], volume - [sigma^2], kT=1[hard]
             double s1111=e1111*avVolume, dS1111=fabs(e1111*dAvVolume)+fabs(dE1111*avVolume),
                    s1122=e1122*avVolume, dS1122=fabs(e1122*dAvVolume)+fabs(dE1122*avVolume),
                    s1212=e1212*avVolume, dS1212=fabs(e1212*dAvVolume)+fabs(dE1212*avVolume),
@@ -1656,11 +1852,17 @@ int main(int argumentsNumber, char **arguments) {
                    s1112=e1112*avVolume, dS1112=fabs(e1112*dAvVolume)+fabs(dE1112*avVolume),
                    s1222=e1222*avVolume, dS1222=fabs(e1222*dAvVolume)+fabs(dE1222*avVolume),
 
-                   nu2211_1111=-s1122/s1111, dNu2211_1111=fabs(dS1122/s1111)+fabs(dS1111*s1122/s1111/s1111),
-                   nu1122_2222=-s1122/s2222, dNu1122_2222=fabs(dS1122/s2222)+fabs(dS2222*s1122/s2222/s2222),
-                   avNu=(nu2211_1111+nu1122_2222)/2.0, dAvNu=(dNu2211_1111+dNu1122_2222)/2.0,
+                   S11=(s1111+s2222)*0.5,
+                   S66=4.0*s1212,
+                   avNu=-s1122/S11, dAvNu=fabs(dS1122/S11)+fabs((dS1111+dS2222)*0.5*s1122/S11/S11), //nu obliczane z Sxxyy
+                   avNu2=S66/S11*0.5-1, dAvNu2=fabs(0.5/S11*4.0*dS1212)+fabs(0.5*S66/S11/S11*(dS1111+dS2222)*0.5), //nu obliczane z Sxyxy (inny rodzaj scinania, przy izotropowych ukladach powinno byc tyle samo co nu1)
 
-                   //\lambdaReduced=\lambda*\sigma^2/(kT)
+                   //stary sposob obliczania nu (nu_x, nu_y i srednia)
+                   /*nu2211_1111=-s1122/s1111, dNu2211_1111=fabs(dS1122/s1111)+fabs(dS1111*s1122/s1111/s1111),
+                   nu1122_2222=-s1122/s2222, dNu1122_2222=fabs(dS1122/s2222)+fabs(dS2222*s1122/s2222/s2222),
+                   avNu=(nu2211_1111+nu1122_2222)/2.0, dAvNu=(dNu2211_1111+dNu1122_2222)/2.0,*/
+
+                   //\lambdaReduced=\lambda*\sigma^2/kT, kT=1[hard]
                    l11=multimerS*multimerS/(8.0*(s1111+s1122)), dL11=multimerS*multimerS*(fabs(dS1111)+fabs(dS1122))/(8.0*fabs(s1111+s1122)*fabs(s1111+s1122)),
                    l12=multimerS*multimerS/(8.0*(s2222+s1122)), dL12=multimerS*multimerS*(fabs(dS2222)+fabs(dS1122))/(8.0*fabs(s2222+s1122)*fabs(s2222+s1122)),
 
@@ -1787,11 +1989,11 @@ int main(int argumentsNumber, char **arguments) {
             fileAllOrientationsResults = fopen(allOrientationsResultsFileName,"w");
 
             if (saveConfigurations) {
-                fprintf(fileResults,"%ld\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%ld\t%.17E\n",(cycle+(long)args[4]),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,avNu,dAvNu,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll,savedConfigurationsInt,avAbsDPhi);
-                fprintf(fileExcelResults,"%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%ld\t%.17E\n",pressureReduced,avPacFrac,avNu,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll,avB,avMy,avE,savedConfigurationsInt,avAbsDPhi);
+                fprintf(fileResults,"%ld\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%ld\t%.17E\n",(cycle+(long)args[4]),pressureReduced,avVolume,dAvVolume,avBoxMatrix[0],dAvBoxMatrix[0],avBoxMatrix[1],dAvBoxMatrix[1],avBoxMatrix[2],dAvBoxMatrix[2],avRho,dAvRho,avPacFrac,dAvPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,avNu,dAvNu,avNu2,dAvNu2,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll,savedConfigurationsInt,avAbsDPhi);
+                fprintf(fileExcelResults,"%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%ld\t%.17E\n",pressureReduced,avPacFrac,avNu,avNu2,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll,avB,avMy,avE,savedConfigurationsInt,avAbsDPhi);
             } else {
-                fprintf(fileResults,"%ld\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\n",(cycle+(long)args[4]),pressureReduced,avVolume,avBoxMatrix[0],avBoxMatrix[1],avBoxMatrix[2],avRho,avPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,avNu,dAvNu,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll);
-                fprintf(fileExcelResults,"%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\n",pressureReduced,avPacFrac,avNu,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll,avB,avMy,avE);
+                fprintf(fileResults,"%ld\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\n",(cycle+(long)args[4]),pressureReduced,avVolume,dAvVolume,avBoxMatrix[0],dAvBoxMatrix[0],avBoxMatrix[1],dAvBoxMatrix[1],avBoxMatrix[2],dAvBoxMatrix[2],avRho,dAvRho,avPacFrac,dAvPacFrac,s1111,dS1111,s1122,dS1122,s1212,dS1212,s2222,dS2222,s1112,dS1112,s1222,dS1222,avNu,dAvNu,avNu2,dAvNu2,avB,dAvB,avMy,dAvMy,avE,dAvE,ODFMaxOne,averageCos6PhiOne,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll);
+                fprintf(fileExcelResults,"%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\t%.17E\n",pressureReduced,avPacFrac,avNu,avNu2,ODFMaxAll,averageCos6PhiAll,-C+maxODFAllIndex*dPhi,averagePhiAll,avB,avMy,avE);
             }
 
             if (!onlyMath[0]) {
@@ -1835,6 +2037,6 @@ int main(int argumentsNumber, char **arguments) {
         loadedConfiguration=0;
         generatorStartPoint=0;
     }
-    printf("\nTime for equilibrations: %ldsec ,  time for measurments: %ldsec, time for math: %ldsec.\n",timeEq,timeMe,timeMath);
-    printf("\nSimulation has been completed.\n");
+    printf("\nTime for equilibrations: %ldsec, time for measurments: %ldsec, time for math: %ldsec.\n",timeEq,timeMe,timeMath);
+    printf("\nSimulation has been completed.\n"); fflush(stdout);
 }
